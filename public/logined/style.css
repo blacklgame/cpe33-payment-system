@@ -44,6 +44,12 @@
       color: #ffffff;
     }
 
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
     .nav-link {
       color: #ffffff;
       text-decoration: none;

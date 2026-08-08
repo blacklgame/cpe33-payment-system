@@ -1,0 +1,171 @@
+* {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', 'Noto Sans Thai', sans-serif;
+    }
+
+    body {
+      background-color: #0b1524;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Navbar */
+    header {
+      width: 100%;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      background-color: #ffffff;
+      color: #000000;
+      font-weight: 700;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 1.1rem;
+    }
+
+    .version {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-link {
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 1.2rem;
+      font-weight: 400;
+    }
+
+    .nav-link:hover {
+      opacity: 0.8;
+    }
+
+    /* Main Content Container */
+    main {
+      width: 100%;
+      max-width: 900px;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    /* Row Layout: Label + Card */
+    .state-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      gap: 40px;
+    }
+
+    /* Section Label on the Left */
+    .section-label {
+      font-size: 2rem;
+      font-weight: 700;
+      width: 180px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* User Stats Card */
+    .user-card {
+      background-color: #1a2638;
+      width: 100%;
+      max-width: 550px;
+      border-radius: 28px;
+      padding: 28px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    /* Status Badge inside Card */
+    .status-badge {
+      position: absolute;
+      left: 32px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .status-paid {
+      color: #22c55e; /* Green */
+    }
+
+    .status-unpaid {
+      color: #ff0000; /* Red */
+    }
+
+    .avatar-placeholder {
+      width: 64px;
+      height: 64px;
+      background-color: #435e7d;
+      border-radius: 50%;
+      margin-bottom: 16px;
+    }
+
+    .user-name {
+      font-size: 1.3rem;
+      font-weight: 400;
+      margin-bottom: 4px;
+    }
+
+    .user-email {
+      font-size: 1.1rem;
+      color: #d1d5db;
+      font-weight: 300;
+    }
+
+    /* Responsive adjustment for mobile screens */
+    @media (max-width: 768px) {
+      .state-row {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .section-label {
+        width: 100%;
+        text-align: center;
+      }
+
+      .status-badge {
+        position: static;
+        transform: none;
+        margin-bottom: 12px;
+      }
+    }

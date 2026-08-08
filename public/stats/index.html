@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stat - Payment States</title>
+  <!-- Google Fonts: Inter & Noto Sans Thai -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+Thai:wght@300;400;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header>
+    <div class="brand">
+      <span class="badge">CPE</span>
+      <span class="version">33</span>
+    </div>
+    <nav class="nav-links">
+      <a href="../logined/index.html" class="nav-link">หน้าหลัก</a>
+      <a href="#" class="nav-link" id="logoutLink">ออกจากระบบ</a>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <h1>Stat</h1>
+
+    <!-- Payment status for the currently logged-in Nu ID -->
+    <div class="state-row">
+      <div class="section-label" id="statusLabel">สถานะ</div>
+      <div class="user-card">
+        <span class="status-badge" id="statusBadge">-</span>
+        <div class="avatar-placeholder"></div>
+        <div class="user-name" id="userName">-</div>
+        <div class="user-email" id="userEmail">-</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="index.js"></script>
+</body>
+</html>
