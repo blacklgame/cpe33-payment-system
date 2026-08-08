@@ -44,7 +44,25 @@
       logEl.appendChild(line);
     };
 
- 
+    // Don't let anyone click Seed Users before the anonymous sign-in
+    // (from firebase.js) actually finishes -- writing before that
+    // resolves means request.auth is still null and every write gets
+    // rejected by firestore.rules, exactly like the silent failure
+    // this page used to have.
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        seedBtn.disabled = false;
+        seedBtn.textContent = "Seed Users";
+      } else {
+        seedBtn.disabled = false;
+        seedBtn.textContent = "Signing in...";
+      }
+    });
+
+    seedBtn.addEventListener("click", async () => {
+      seedBtn.disabled = true;
+      const ids = Object.keys(USERS);
+      log(`Found ${ids.length} users in user.js. Writing to Firestore...`);
 
       // Firestore batches max out at 500 writes -- chunk if the
       // roster is larger than that.
