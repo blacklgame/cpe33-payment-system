@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin: Seed Users to Firestore</title>
+  <style>
+    body { font-family: sans-serif; background: #0b1524; color: #fff; padding: 40px; }
+    button { font-size: 1.1rem; padding: 12px 24px; cursor: pointer; }
+    #log { margin-top: 20px; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Seed Users into Firestore</h1>
+  <p>
+    This reads every entry in <code>user.js</code> (your existing local
+    roster) and writes it into the Firestore <code>users</code> collection,
+    one document per Nu ID. Run this once after enabling Firestore.
+  </p>
+  <p><strong>Delete this page (or block it with rules) once you're done —
+  it's not meant to stay live on a public site.</strong></p>
+
+  <button id="seedBtn">Seed Users</button>
+  <div id="log"></div>
+
+  <script src="user.js"></script>
+  <script type="module">
+    import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { db } from "./firebase.js";
+
+    const logEl = document.getElementById("log");
+    const log = (msg) => { logEl.textContent += msg + "\n"; };
+
+    document.getElementById("seedBtn").addEventListener("click", async () => {
+      const ids = Object.keys(USERS);
+      log(`Found ${ids.length} users in user.js. Writing to Firestore...`);
+
+      // Firestore batches max out at 500 writes -- chunk if the
+      // roster is larger than that.
+      const chunkSize = 450;
+      let written = 0;
+
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const batch = writeBatch(db);
+        const chunk = ids.slice(i, i + chunkSize);
+
+        chunk.forEach((id) => {
+          const u = USERS[id];
+          batch.set(doc(db, "users", id), {
+            name: u.name,
+            email: u.email,
+            stat: u.stat
+          });
+        });
+
+        await batch.commit();
+        written += chunk.length;
+        log(`Wrote ${written} / ${ids.length}...`);
+      }
+
+      log("Done!");
+    });
+  </script>
+</body>
+</html>

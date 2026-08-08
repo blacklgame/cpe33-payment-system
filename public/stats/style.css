@@ -150,6 +150,18 @@
       font-weight: 300;
     }
 
+    .slip-link {
+      display: none;
+      margin-top: 12px;
+      font-size: 1rem;
+      color: #60a5fa;
+      text-decoration: underline;
+    }
+
+    .slip-link.show {
+      display: inline-block;
+    }
+
     /* Responsive adjustment for mobile screens */
     @media (max-width: 768px) {
       .state-row {

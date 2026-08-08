@@ -1,0 +1,18 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Payment slip images, one folder per Nu ID: slips/{nuid}/...
+    // Anyone can view a slip if they have its exact URL (needed so
+    // the Stats page can show/link to it). Uploading requires a
+    // signed-in session, same caveat as firestore.rules: this blocks
+    // outside scripts, but doesn't verify Nu ID ownership since the
+    // app has no password login.
+    match /slips/{nuid}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+                    && request.resource.size < 10 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

@@ -1,10 +1,3 @@
-/* ---------------------------------------------------------
-   Mock "database" of Nu ID -> user info.
-   In a real system this would come from a server/API call
-   instead of being hard-coded on the client.
---------------------------------------------------------- */
-
-
 const form = document.getElementById("loginForm");
 const input = document.getElementById("nuid");
 const errorText = document.getElementById("errorText");

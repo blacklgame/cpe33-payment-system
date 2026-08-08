@@ -2,6 +2,9 @@
    1) Sync this page to whichever Nu ID logged in (same session
       key the login page + home page use), e.g. "69360303"
 ------------------------------------------------------------ */
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { db } from "../firebase.js";
+
 const raw = sessionStorage.getItem("cpe33_user");
 
 if (!raw) {
@@ -14,26 +17,38 @@ if (!raw) {
   document.getElementById("userEmail").textContent = user.email;
 
   /* ----------------------------------------------------------
-     2) Look up this user's payment record.
-     NOTE: There's no real backend yet, so "cpe33_payments" in
-     localStorage stands in for a server-side payment table.
-     The home page (public/logined/index.js) writes to it when
-     a user successfully sends their slip. Swap this lookup for
-     a fetch() to your real API once a backend exists.
+     2) Look up this user's payment record in Firestore.
+     The home page (public/logined/index.js) writes this doc,
+     at payments/{nuid}, when a user successfully uploads their
+     slip to Storage.
   ---------------------------------------------------------- */
-  const payments = JSON.parse(localStorage.getItem("cpe33_payments") || "{}");
-  const record = payments[user.id];
-  const isPaid = Boolean(record && record.paid);
-
   const statusBadge = document.getElementById("statusBadge");
+  const slipLink = document.getElementById("slipLink");
 
-  if (isPaid) {
-    statusBadge.textContent = "จ่ายแล้ว";
-    statusBadge.className = "status-badge status-paid";
-  } else {
-    statusBadge.textContent = "ยังไม่จ่าย";
-    statusBadge.className = "status-badge status-unpaid";
-  }
+  getDoc(doc(db, "payments", user.id))
+    .then((paymentSnap) => {
+      const isPaid = Boolean(paymentSnap.exists() && paymentSnap.data().paid);
+
+      if (isPaid) {
+        statusBadge.textContent = "จ่ายแล้ว";
+        statusBadge.className = "status-badge status-paid";
+
+        const slipUrl = paymentSnap.data().slipUrl;
+        if (slipUrl) {
+          slipLink.href = slipUrl;
+          slipLink.textContent = "ดูสลิปที่อัปโหลด";
+          slipLink.classList.add("show");
+        }
+      } else {
+        statusBadge.textContent = "ยังไม่จ่าย";
+        statusBadge.className = "status-badge status-unpaid";
+      }
+    })
+    .catch((err) => {
+      console.error("Failed to load payment status:", err);
+      statusBadge.textContent = "โหลดข้อมูลไม่สำเร็จ";
+      statusBadge.className = "status-badge status-unpaid";
+    });
 }
 
 document.getElementById("logoutLink").addEventListener("click", (e) => {
