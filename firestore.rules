@@ -3,12 +3,15 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Roster of students (Nu ID -> name/email/stat).
-    // Readable by the app for login lookups. Not writable from the
-    // client at all -- only edit this via admin-seed.html or the
-    // Firebase Console, so students can't rewrite their own record.
+    // Readable by the app for login lookups. Writable only by a
+    // signed-in session -- same anonymous-auth gate as payments below
+    // -- so admin-seed.html can write, but random API calls can't.
+    // IMPORTANT: after you finish seeding, tighten this back to
+    // `allow write: if false;` and republish, so students can't edit
+    // their own name/email/stat from the browser console.
     match /users/{nuid} {
       allow read: if true;
-      allow write: if false;
+      allow write: if request.auth != null;
     }
 
     // Payment status + slip metadata, keyed by Nu ID.

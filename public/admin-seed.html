@@ -6,7 +6,9 @@
   <style>
     body { font-family: sans-serif; background: #0b1524; color: #fff; padding: 40px; }
     button { font-size: 1.1rem; padding: 12px 24px; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
     #log { margin-top: 20px; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; }
+    .error { color: #ff8080; }
   </style>
 </head>
 <body>
@@ -18,19 +20,47 @@
   </p>
   <p><strong>Delete this page (or block it with rules) once you're done —
   it's not meant to stay live on a public site.</strong></p>
+  <p><strong>Before seeding:</strong> firestore.rules must currently allow
+  writes to <code>users</code> (temporarily, for this one-time step) —
+  <code>allow write: if request.auth != null;</code> — and be published
+  in the Firebase Console. Lock it back to
+  <code>allow write: if false;</code> once seeding is done.</p>
 
-  <button id="seedBtn">Seed Users</button>
+  <button id="seedBtn" disabled>Signing in...</button>
   <div id="log"></div>
 
   <script src="user.js"></script>
   <script type="module">
     import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { db } from "./firebase.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { db, auth } from "./firebase.js";
 
     const logEl = document.getElementById("log");
-    const log = (msg) => { logEl.textContent += msg + "\n"; };
+    const seedBtn = document.getElementById("seedBtn");
+    const log = (msg, isError) => {
+      const line = document.createElement("div");
+      if (isError) line.className = "error";
+      line.textContent = msg;
+      logEl.appendChild(line);
+    };
 
-    document.getElementById("seedBtn").addEventListener("click", async () => {
+    // Don't let anyone click Seed Users before the anonymous sign-in
+    // (from firebase.js) actually finishes -- writing before that
+    // resolves means request.auth is still null and every write gets
+    // rejected by firestore.rules, exactly like the silent failure
+    // this page used to have.
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        seedBtn.disabled = false;
+        seedBtn.textContent = "Seed Users";
+      } else {
+        seedBtn.disabled = true;
+        seedBtn.textContent = "Signing in...";
+      }
+    });
+
+    seedBtn.addEventListener("click", async () => {
+      seedBtn.disabled = true;
       const ids = Object.keys(USERS);
       log(`Found ${ids.length} users in user.js. Writing to Firestore...`);
 
@@ -39,25 +69,35 @@
       const chunkSize = 450;
       let written = 0;
 
-      for (let i = 0; i < ids.length; i += chunkSize) {
-        const batch = writeBatch(db);
-        const chunk = ids.slice(i, i + chunkSize);
+      try {
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const batch = writeBatch(db);
+          const chunk = ids.slice(i, i + chunkSize);
 
-        chunk.forEach((id) => {
-          const u = USERS[id];
-          batch.set(doc(db, "users", id), {
-            name: u.name,
-            email: u.email,
-            stat: u.stat
+          chunk.forEach((id) => {
+            const u = USERS[id];
+            batch.set(doc(db, "users", id), {
+              name: u.name,
+              email: u.email,
+              stat: u.stat
+            });
           });
-        });
 
-        await batch.commit();
-        written += chunk.length;
-        log(`Wrote ${written} / ${ids.length}...`);
+          await batch.commit();
+          written += chunk.length;
+          log(`Wrote ${written} / ${ids.length}...`);
+        }
+
+        log("Done! Now lock firestore.rules back to `allow write: if false;` for users and republish.");
+      } catch (err) {
+        // This is the part the old version was missing -- surface the
+        // real Firestore error (e.g. "permission-denied" if rules
+        // aren't published yet) instead of failing silently.
+        console.error(err);
+        log(`Failed after writing ${written} / ${ids.length}: ${err.code || ""} ${err.message}`, true);
+        seedBtn.disabled = false;
+        seedBtn.textContent = "Retry";
       }
-
-      log("Done!");
     });
   </script>
 </body>
