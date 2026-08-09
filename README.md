@@ -5,15 +5,40 @@ upload a payment slip image, and admins can see who's paid on the
 Stats page.
 
 - **Login roster + payment status:** Firebase Firestore
-- **Auth:** Firebase Anonymous Auth (gives each browser session a
-  signed-in token so security rules can require "must be signed in"
-  before writing -- there's no real password login)
+- **Auth:** Firebase Anonymous Auth for students (session identity
+  only -- there's no real password login; see "Security model" below
+  for why nothing security-critical can rely on it), Google Sign-In
+  (restricted to whitelisted `@nu.ac.th` addresses) for admins
 - **Slip images:** Cloudinary, uploaded directly from the browser
   (unsigned upload -- Firebase Storage requires the paid Blaze plan
   even for small usage, and Vercel Blob's free tier caps out at 1GB,
   so images go straight from the client to Cloudinary instead)
-- **Hosting:** Vercel (static `public/` only -- no serverless
-  functions needed anymore)
+- **Hosting:** Vercel (`public/` static site + serverless functions
+  in `api/` -- every write to `payments/{nuid}` goes through one of
+  these, since `firestore.rules` denies client writes to that
+  collection entirely)
+
+## Security model
+
+A student's "paid" status can **only** ever be set by
+`api/admin/approve-slip.js`, after an admin has looked at the slip in
+the dashboard and clicked Approve. The student-facing upload flow
+(`public/logined/index.js` -> `api/submit-slip.js`) can only ever
+create a *pending* record -- it has no code path that writes
+`paid: true`. This closes a real hole in an earlier version of this
+app: `firestore.rules` used to let a signed-in (including anonymous)
+client write `payments/{nuid}` directly as long as the data matched a
+couple of regexes, which only check the *shape* of a string, not
+whether anyone reviewed the image. Since Cloudinary's unsigned upload
+preset lets the client pick its own `public_id`, that meant anyone
+could upload an unrelated image and self-approve as "paid" with zero
+admin involvement. See `api/submit-slip.js` and `firestore.rules` for
+the current design.
+
+This still doesn't verify that whoever types a Nu ID into the login
+page actually owns it -- there's no password login, by design. That's
+a separate, known limitation; the fix above is specifically about
+making sure a submitted slip can never mark itself paid.
 
 ## One-time Firebase setup
 
@@ -58,12 +83,20 @@ Vercel Blob's 1GB cap for ~91 students' worth of slips.
 ## Data model
 - `users/{nuid}` — `{ name, email, stat }`, one doc per Nu ID.
   Read-only from the client (`allow write: if false`).
-- `payments/{nuid}` — `{ paid, fileName, slipUrl, uploadedAt, studentStatus }`,
-  written when a student uploads a payment slip. Writable only by a
-  signed-in (anonymous) session. `studentStatus` (`"normal" |
-  "termination" | "unpaid"`) is a separate admin-only override, set
-  via `api/admin/set-status.js` -- not written by the student upload
-  flow.
+- `payments/{nuid}` — `{ paid, reviewStatus, fileName, slipUrl,
+  slipPublicId, submittedAt, studentStatus, approvedBy, approvedAt }`.
+  NOT writable from any client session (`firestore.rules` is
+  `allow write: if false`) -- every write goes through an Admin-SDK
+  server endpoint:
+  - `api/submit-slip.js` -- called by students after a Cloudinary
+    upload. Always writes `paid: false, reviewStatus: "pending"`.
+    It has no code path that can ever write `paid: true`.
+  - `api/admin/approve-slip.js` -- the *only* place `paid: true` can
+    be written. Admin-only (whitelist + verified ID token).
+  - `api/admin/set-status.js` -- sets the `studentStatus` override
+    (`"normal" | "termination" | "unpaid"`). Admin-only.
+  - `api/admin/delete-slip.js` -- rejects/removes a slip, resets
+    `paid: false`. Admin-only.
 - Cloudinary: `slips/{nuid}/{timestamp}_{filename}` — the uploaded
   slip images themselves (public_id under the `slips/` folder).
 
@@ -93,7 +126,8 @@ is why `index.js` script tags are marked `type="module"`.
 ## Admin dashboard setup
 
 The admin dashboard (`public/admin/`) lets a whitelisted admin see
-every user 1-91, view their uploaded slip, delete a slip that turns
+every user 1-91, view their uploaded slip, **approve a pending slip**
+(the only way a student gets marked paid), delete a slip that turns
 out to be fake (which also resets that student back to unpaid), and
 set each student's status to **ปกติ/Normal** (green), **พ้นสภาพ/
 Termination** (orange), or **ยังไม่จ่าย/Haven't paid** (red) from a
@@ -104,14 +138,14 @@ Two layers of checking happen:
 - **Client-side** (`admin.js`, `dashboard.js`) -- decides whether the
   login/dashboard *pages* let someone in. This is just a UI gate and
   can be bypassed by anyone editing JS in devtools.
-- **Server-side** (`api/admin/delete-slip.js`, `api/admin/set-status.js`)
-  -- the real security check for the delete and status-change actions,
-  since each independently re-verifies the signed-in user's identity
-  with Firebase's own servers. The status field specifically has to
-  go through here rather than a direct client write, because
-  `firestore.rules` lets any signed-in session (including an
-  anonymous student session) write to `payments/{nuid}` -- a field
-  that can mark someone "terminated" can't be left open to that.
+- **Server-side** (`api/admin/approve-slip.js`, `api/admin/delete-slip.js`,
+  `api/admin/set-status.js`) -- the real security check for approving,
+  deleting, and status-change actions, since each independently
+  re-verifies the signed-in user's identity with Firebase's own
+  servers. Every one of these fields has to go through here rather
+  than a direct client write, because `firestore.rules` denies all
+  client writes to `payments/{nuid}` outright -- students submit via
+  `api/submit-slip.js`, which can only ever write `paid: false`.
 
 **To add or remove an admin, edit only `public/admin/admin-emails.json`**
 -- a plain JSON array of `@nu.ac.th` addresses. All four checks above

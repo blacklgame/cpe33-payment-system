@@ -124,6 +124,11 @@ async function loadDashboard() {
         name: userData.name || "-",
         email: userData.email || "-",
         paid,
+        // A slip that's been submitted (via api/submit-slip.js) but
+        // not yet approved by an admin (via api/admin/approve-slip.js)
+        // -- see firestore.rules for why paid can no longer flip to
+        // true on its own just because a slip was uploaded.
+        pendingReview: !!(payment && payment.slipUrl && !paid),
         studentStatus,
         slipUrl: payment ? payment.slipUrl : null,
         slipPublicId: payment ? payment.slipPublicId : null
@@ -241,7 +246,7 @@ const STATUS_META = {
   unpaid: { label: "ยังไม่จ่าย", pillClass: "status-unpaid", cardClass: "card-unpaid" }
 };
 
-function buildRow({ index, nuid, name, email, paid, studentStatus, slipUrl, slipPublicId }) {
+function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus, slipUrl, slipPublicId }) {
   const row = document.createElement("div");
   row.className = "stat-row";
   row.dataset.nuid = nuid;
@@ -300,6 +305,18 @@ function buildRow({ index, nuid, name, email, paid, studentStatus, slipUrl, slip
     viewLink.className = "action-btn-view";
     viewLink.textContent = "ดูสลิปที่อัพโหลด";
     actions.appendChild(viewLink);
+
+    if (pendingReview) {
+      const approveLink = document.createElement("a");
+      approveLink.href = "#";
+      approveLink.className = "action-btn-view";
+      approveLink.textContent = "อนุมัติ (Approve)";
+      approveLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        handleApprove(nuid, approveLink);
+      });
+      actions.appendChild(approveLink);
+    }
 
     const deleteLink = document.createElement("a");
     deleteLink.href = "#";
@@ -363,6 +380,42 @@ async function handleStatusChange(nuid, newStatus, selectEl, card) {
     selectEl.value = previousValue;
   } finally {
     selectEl.disabled = false;
+  }
+}
+
+async function handleApprove(nuid, triggerEl) {
+  const confirmed = window.confirm(
+    `ยืนยันอนุมัติสลิปของรหัสนิสิต ${nuid}?\nระบบจะเปลี่ยนสถานะเป็น "จ่ายแล้ว"`
+  );
+  if (!confirmed) return;
+
+  const originalText = triggerEl.textContent;
+  triggerEl.textContent = "กำลังอนุมัติ...";
+
+  try {
+    const idToken = await currentAdminUser.getIdToken();
+
+    const res = await fetch("/api/admin/approve-slip", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`
+      },
+      body: JSON.stringify({ nuid })
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || "Approve failed");
+    }
+
+    // Reload this row's data from Firestore rather than guessing the
+    // new state locally, so the UI always reflects what's really saved.
+    await loadDashboard();
+  } catch (err) {
+    console.error("Approve failed:", err);
+    alert("อนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    triggerEl.textContent = originalText;
   }
 }
 

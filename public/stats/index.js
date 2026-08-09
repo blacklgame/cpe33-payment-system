@@ -25,6 +25,12 @@ const STATUS_META = {
     pillClass: "status-unpaid",
     cardClass: "card-unpaid",
     note: "ยังไม่พบการชำระเงินของคุณ กรุณาอัปโหลดสลิปที่หน้าหลัก"
+  },
+  pending: {
+    label: "รอตรวจสอบ",
+    pillClass: "status-unpaid",
+    cardClass: "card-unpaid",
+    note: "ได้รับสลิปของคุณแล้ว กำลังรอผู้ดูแลระบบตรวจสอบ"
   }
 };
 
@@ -62,7 +68,9 @@ if (!raw) {
       const paid = !!(payment && payment.paid);
       const studentStatus = payment && payment.studentStatus
         ? payment.studentStatus
-        : (paid ? "normal" : "unpaid");
+        : paid
+          ? "normal"
+          : (payment && payment.reviewStatus === "pending" ? "pending" : "unpaid");
 
       const meta = STATUS_META[studentStatus] || STATUS_META.unpaid;
 

@@ -12,44 +12,29 @@ service cloud.firestore {
     }
 
     // Payment status + slip metadata, keyed by Nu ID.
-    // Readable by the app (Stats page). Writable only by a signed-in
-    // session (see firebase.js's anonymous sign-in) -- this blocks
-    // anyone from writing directly via the API/console without ever
-    // going through your app. It does NOT verify the writer actually
-    // owns that Nu ID, since this app has no password login.
+    // Readable by the app (Stats page). NOT writable from the client
+    // at all, from any session (anonymous or otherwise).
+    //
+    // This used to allow a signed-in client to create/update this
+    // doc directly as long as the data "looked right" (regex checks
+    // on slipUrl/slipPublicId) -- but a regex only checks the SHAPE
+    // of a string, not whether an admin ever reviewed the image. An
+    // unsigned Cloudinary upload lets the client choose its own
+    // public_id, so anyone could upload an unrelated picture and get
+    // back a slipUrl that satisfied every check here, then write
+    // paid:true straight into Firestore themselves. That's a
+    // complete bypass of payment verification.
+    //
+    // Every write to this collection now goes through Admin-SDK-only
+    // server endpoints that independently verify who's calling and
+    // what they're allowed to do:
+    //   - api/submit-slip.js       (students: always writes paid:false)
+    //   - api/admin/approve-slip.js (admins only: the ONLY path to paid:true)
+    //   - api/admin/set-status.js   (admins only)
+    //   - api/admin/delete-slip.js  (admins only)
     match /payments/{nuid} {
       allow read: if true;
-      allow delete: if false; // Only admins can delete, via Admin SDK
-
-      allow create: if request.auth != null
-        && exists(/databases/$(database)/documents/users/$(nuid))
-        && request.resource.data.keys().hasOnly(['paid', 'fileName', 'slipUrl', 'slipPublicId', 'uploadedAt'])
-        && request.resource.data.paid == true
-        && request.resource.data.fileName is string
-        && request.resource.data.slipUrl is string
-        && request.resource.data.slipUrl.matches('^https://res\\.cloudinary\\.com/egcc6hml/image/upload/.+')
-        && request.resource.data.slipPublicId is string
-        && request.resource.data.slipPublicId.matches('^slips/' + nuid + '/.+')
-        && request.resource.data.uploadedAt == request.time;
-
-      allow update: if request.auth != null
-        && exists(/databases/$(database)/documents/users/$(nuid))
-        && resource.data.get('studentStatus', 'unpaid') != 'termination'
-        && request.resource.data.keys().hasOnly(['paid', 'fileName', 'slipUrl', 'slipPublicId', 'uploadedAt', 'studentStatus', 'statusSetBy', 'statusSetAt', 'rejectedBy', 'rejectedAt'])
-        // Admin fields must not be modified by the client
-        && request.resource.data.get('studentStatus', null) == resource.data.get('studentStatus', null)
-        && request.resource.data.get('statusSetBy', null) == resource.data.get('statusSetBy', null)
-        && request.resource.data.get('statusSetAt', null) == resource.data.get('statusSetAt', null)
-        && request.resource.data.get('rejectedBy', null) == resource.data.get('rejectedBy', null)
-        && request.resource.data.get('rejectedAt', null) == resource.data.get('rejectedAt', null)
-        // Check student fields if they are updated
-        && request.resource.data.paid == true
-        && request.resource.data.fileName is string
-        && request.resource.data.slipUrl is string
-        && request.resource.data.slipUrl.matches('^https://res\\.cloudinary\\.com/egcc6hml/image/upload/.+')
-        && request.resource.data.slipPublicId is string
-        && request.resource.data.slipPublicId.matches('^slips/' + nuid + '/.+')
-        && request.resource.data.uploadedAt == request.time;
+      allow write: if false;
     }
   }
 }
