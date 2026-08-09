@@ -148,7 +148,7 @@ function buildRow({ index, nuid, name, email, paid, slipUrl, slipPublicId }) {
     const deleteLink = document.createElement("a");
     deleteLink.href = "#";
     deleteLink.className = "action-btn-delete";
-    deleteLink.textContent = "ลบ (สลิปปลอม)";
+    deleteLink.textContent = "ลบ";
     deleteLink.addEventListener("click", (e) => {
       e.preventDefault();
       handleDelete(nuid, slipPublicId, deleteLink);
@@ -198,6 +198,6 @@ async function handleDelete(nuid, slipPublicId, triggerEl) {
   } catch (err) {
     console.error("Delete failed:", err);
     alert("ลบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
-    triggerEl.textContent = "ลบ (สลิปปลอม)";
+    triggerEl.textContent = "ลบ";
   }
 }

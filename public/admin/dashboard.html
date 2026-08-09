@@ -128,30 +128,31 @@
       flex-shrink: 0;
     }
 
-    /* User Stats Card */
+    /* User Stats Card -- everything below is in normal document
+       flow (nothing absolutely positioned), so the card always
+       grows to fit its content and the pill/actions can never
+       overlap the name or email, no matter how long they are. */
     .user-card {
       background-color: #1a2638;
       width: 100%;
       max-width: 550px;
       border-radius: 28px;
-      padding: 28px;
-      position: relative;
+      padding: 24px 28px;
       display: flex;
       flex-direction: column;
       align-items: center;
       text-align: center;
+      gap: 14px;
     }
 
-    /* Pill Badge on Left Side of Card */
+    /* Pill Badge -- sits above the user info now instead of
+       floating on the card's left edge. */
     .status-pill {
-      position: absolute;
-      left: 24px;
-      top: 50%;
-      transform: translateY(-50%);
+      align-self: center;
       background-color: #e5e7eb;
-      padding: 10px 20px;
+      padding: 8px 18px;
       border-radius: 30px;
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-weight: 700;
     }
 
@@ -169,37 +170,40 @@
       height: 64px;
       background-color: #435e7d;
       border-radius: 50%;
-      margin-bottom: 12px;
     }
 
     .user-name {
       font-size: 1.3rem;
       font-weight: 400;
-      margin-bottom: 4px;
+      word-break: break-word;
     }
 
     .user-email {
       font-size: 1.1rem;
       color: #d1d5db;
       font-weight: 300;
+      word-break: break-word;
     }
 
-    /* Card Actions (Bottom-Right) */
+    /* Card Actions -- a normal row under the info, separated by a
+       divider, right-aligned within the card's full width. */
     .card-actions {
-      position: absolute;
-      right: 28px;
-      bottom: 20px;
+      width: 100%;
       display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 4px;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 20px;
+      margin-top: 4px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .action-btn-delete {
-      color: #ff0000;
+      color: #ff5c5c;
       text-decoration: none;
       font-size: 1rem;
       font-weight: 700;
+      white-space: nowrap;
     }
 
     .action-btn-view {
@@ -207,6 +211,7 @@
       text-decoration: none;
       font-size: 0.95rem;
       font-weight: 400;
+      white-space: nowrap;
     }
 
     .action-btn-delete:hover,
@@ -231,16 +236,8 @@
         text-align: center;
       }
 
-      .status-pill {
-        position: static;
-        transform: none;
-        margin-bottom: 16px;
-      }
-
       .card-actions {
-        position: static;
-        align-items: center;
-        margin-top: 16px;
+        justify-content: center;
       }
     }
   </style>
