@@ -120,7 +120,7 @@ file, so there's nowhere else to update:
 
 ```json
 [
-  "natthaphatb69@nu.ac.th",
+  "admin@nu.ac.th",
   "another.admin@nu.ac.th"
 ]
 ```
