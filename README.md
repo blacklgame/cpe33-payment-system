@@ -8,10 +8,12 @@ Stats page.
 - **Auth:** Firebase Anonymous Auth (gives each browser session a
   signed-in token so security rules can require "must be signed in"
   before writing -- there's no real password login)
-- **Slip images:** Vercel Blob (Firebase Storage now requires the paid
-  Blaze plan even for small usage, so images don't go through Firebase
-  at all)
-- **Hosting:** Vercel (static `public/` + one serverless function)
+- **Slip images:** Cloudinary, uploaded directly from the browser
+  (unsigned upload -- Firebase Storage requires the paid Blaze plan
+  even for small usage, and Vercel Blob's free tier caps out at 1GB,
+  so images go straight from the client to Cloudinary instead)
+- **Hosting:** Vercel (static `public/` only -- no serverless
+  functions needed anymore)
 
 ## One-time Firebase setup
 
@@ -23,15 +25,35 @@ Stats page.
    editing the file locally does nothing until it's published here.)
 3. `public/firebase.js` already has this project's config wired up.
 
+## One-time Cloudinary setup
+
+1. Sign up free at cloudinary.com -- no credit card needed.
+2. On the Console home page, copy your **Cloud name** (top of the
+   page).
+3. Go to Settings (gear icon) -> **Upload** -> scroll to **Upload
+   presets** -> **Add upload preset**:
+   - Set **Signing Mode** to **Unsigned** (required -- this app
+     uploads straight from the browser with no server in between).
+   - Under **Upload Manipulations** -> **Incoming Transformation**,
+     add `q_auto,f_auto` so Cloudinary auto-compresses every slip on
+     the way in (a 3-5MB phone photo typically lands under 1MB with
+     no visible quality loss).
+   - Save, and copy the preset name.
+4. Paste your Cloud name and preset name into
+   `public/logined/index.js` (`CLOUDINARY_CLOUD_NAME` and
+   `CLOUDINARY_UPLOAD_PRESET` near the top of the upload section).
+
+Free plan gives 25 credits/month (storage + bandwidth + transforms
+combined, roughly 25GB worth) -- comfortably more headroom than
+Vercel Blob's 1GB cap for ~91 students' worth of slips.
+
 ## Deploying (Vercel)
 
 1. Push this repo to GitHub, then in Vercel: Add New -> Project ->
    import the repo. Framework preset: **Other** (the included
    `vercel.json` points it at `public/`).
-2. After the first deploy: project -> **Storage** tab -> Create
-   Database -> **Blob** (Public access). Linking it auto-sets the
-   `BLOB_READ_WRITE_TOKEN` env var that `api/upload.js` needs.
-3. Redeploy once more so the function picks up that env var.
+2. That's it -- no env vars or storage linking needed, since
+   Cloudinary uploads happen entirely client-side.
 
 ## Data model
 - `users/{nuid}` — `{ name, email, stat }`, one doc per Nu ID.
@@ -39,8 +61,8 @@ Stats page.
 - `payments/{nuid}` — `{ paid, fileName, slipUrl, uploadedAt }`,
   written when a student uploads a payment slip. Writable only by a
   signed-in (anonymous) session.
-- Vercel Blob: `slips/{nuid}/{timestamp}_{filename}` — the uploaded
-  slip images themselves.
+- Cloudinary: `slips/{nuid}/{timestamp}_{filename}` — the uploaded
+  slip images themselves (public_id under the `slips/` folder).
 
 ## Updating the roster later
 The `users` collection is locked to read-only from the browser on
@@ -51,14 +73,13 @@ Firebase Console's Firestore -> Data tab, or temporarily reopening
 way the initial roster was loaded.
 
 ## About the upload size limit
-Slip uploads go through `/api/upload`, which forwards the file to
-Vercel Blob with `put()`. Since the file passes through the serverless
-function, uploads are capped at **4MB** (Vercel's function body limit
-is ~4.5MB). The client checks file size before upload and shows a Thai
-error message if it's too big. If larger, uncompressed phone photos
-need to be supported later, switch to Vercel Blob's client-upload flow
-(`@vercel/blob/client`'s `upload()` + `handleUpload()`), which sends
-files directly from the browser to Blob and supports up to 500MB.
+Slip uploads go straight from the browser to Cloudinary (no
+serverless function in between, so no Vercel body-size cap to worry
+about). The client still checks file size before upload and shows a
+Thai error message above **10MB** as a sanity check -- comfortably
+larger than any phone photo of a payment slip, and the upload
+preset's `q_auto,f_auto` transformation compresses it further on
+Cloudinary's end anyway.
 
 ## Note on the pages
 Every page is loaded with plain `<script src="...">` tags (no
