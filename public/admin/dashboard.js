@@ -28,6 +28,23 @@ const welcomeMsg = document.getElementById("welcomeMsg");
 const loadingText = document.getElementById("loadingText");
 const rowsContainer = document.getElementById("rowsContainer");
 const logoutLink = document.getElementById("logoutLink");
+const toolbar = document.getElementById("toolbar");
+const pagination = document.getElementById("pagination");
+const searchInput = document.getElementById("searchInput");
+const searchClear = document.getElementById("searchClear");
+const searchResultsInfo = document.getElementById("searchResultsInfo");
+
+// How many users each page shows. Pagination labels (below) are built
+// from whatever's actually loaded, so this is the only number to
+// touch if the page size should ever change.
+const PAGE_SIZE = 10;
+
+// All loaded users, in the same order as rendered (index 0 = row #1).
+// Rebuilt on every loadDashboard() call; renderPage()/renderSearch()
+// read from this instead of hitting Firestore again.
+let allUsers = [];
+let currentPage = 1;
+let currentSearch = "";
 
 const adminEmailsPromise = fetch("./admin-emails.json").then((res) => res.json());
 
@@ -59,6 +76,7 @@ logoutLink.addEventListener("click", async (e) => {
 
 async function loadDashboard() {
   loadingText.textContent = "กำลังโหลดรายชื่อ...";
+  toolbar.style.display = "none";
   rowsContainer.innerHTML = "";
 
   try {
@@ -82,7 +100,7 @@ async function loadDashboard() {
 
     loadingText.textContent = "";
 
-    userDocs.forEach((userDoc, index) => {
+    allUsers = userDocs.map((userDoc, index) => {
       const nuid = userDoc.id;
       const userData = userDoc.data();
       const payment = paymentsByNuid[nuid] || null;
@@ -98,24 +116,122 @@ async function loadDashboard() {
         ? payment.studentStatus
         : (paid ? "normal" : "unpaid");
 
-      rowsContainer.appendChild(
-        buildRow({
-          index: index + 1,
-          nuid,
-          name: userData.name || "-",
-          email: userData.email || "-",
-          paid,
-          studentStatus,
-          slipUrl: payment ? payment.slipUrl : null,
-          slipPublicId: payment ? payment.slipPublicId : null
-        })
-      );
+      return {
+        index: index + 1,
+        nuid,
+        name: userData.name || "-",
+        email: userData.email || "-",
+        paid,
+        studentStatus,
+        slipUrl: payment ? payment.slipUrl : null,
+        slipPublicId: payment ? payment.slipPublicId : null
+      };
     });
+
+    toolbar.style.display = "flex";
+    renderPagination();
+    // Clamp in case the roster shrank since the last load.
+    const pageCount = Math.max(1, Math.ceil(allUsers.length / PAGE_SIZE));
+    if (currentPage > pageCount) currentPage = pageCount;
+    renderCurrentView();
   } catch (err) {
     console.error("Failed to load dashboard:", err);
     loadingText.textContent = "โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
   }
 }
+
+/* ------------------------------------------------------------
+   Pagination + search
+   Users are chunked into pages of PAGE_SIZE. Each page button is
+   labelled with the last 3 digits of its first and last Nu ID
+   (e.g. "013-105"), computed from whatever's actually loaded --
+   so it never drifts from reality even if the roster changes.
+   Typing in the search box switches to showing every match across
+   the whole roster instead of one page at a time.
+------------------------------------------------------------ */
+function renderPagination() {
+  pagination.innerHTML = "";
+  const pageCount = Math.max(1, Math.ceil(allUsers.length / PAGE_SIZE));
+
+  for (let p = 1; p <= pageCount; p++) {
+    const start = (p - 1) * PAGE_SIZE;
+    const pageUsers = allUsers.slice(start, start + PAGE_SIZE);
+    const firstLast3 = pageUsers[0].nuid.slice(-3);
+    const lastLast3 = pageUsers[pageUsers.length - 1].nuid.slice(-3);
+    const rangeLabel = firstLast3 === lastLast3 ? firstLast3 : `${firstLast3}-${lastLast3}`;
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "page-btn";
+    if (p === currentPage) btn.classList.add("active");
+    btn.innerHTML = `<span class="page-num">หน้า ${p}</span><span class="page-range">(${rangeLabel})</span>`;
+    btn.addEventListener("click", () => {
+      currentPage = p;
+      searchInput.value = "";
+      currentSearch = "";
+      searchClear.classList.remove("show");
+      renderCurrentView();
+    });
+    pagination.appendChild(btn);
+  }
+}
+
+function renderCurrentView() {
+  if (currentSearch) {
+    renderSearchResults();
+  } else {
+    renderPageRows();
+  }
+}
+
+function renderPageRows() {
+  pagination.classList.remove("hidden");
+  searchResultsInfo.style.display = "none";
+  Array.from(pagination.children).forEach((btn, i) => {
+    btn.classList.toggle("active", i + 1 === currentPage);
+  });
+
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageUsers = allUsers.slice(start, start + PAGE_SIZE);
+
+  rowsContainer.innerHTML = "";
+  pageUsers.forEach((u) => rowsContainer.appendChild(buildRow(u)));
+}
+
+function renderSearchResults() {
+  pagination.classList.add("hidden");
+
+  const term = currentSearch.trim().toLowerCase();
+  const matches = allUsers.filter((u) => {
+    return (
+      u.nuid.toLowerCase().includes(term) ||
+      u.name.toLowerCase().includes(term) ||
+      u.email.toLowerCase().includes(term)
+    );
+  });
+
+  searchResultsInfo.style.display = "block";
+  searchResultsInfo.textContent = matches.length
+    ? `พบ ${matches.length} รายการ`
+    : "ไม่พบผู้ใช้ที่ตรงกับคำค้นหา";
+
+  rowsContainer.innerHTML = "";
+  matches.forEach((u) => rowsContainer.appendChild(buildRow(u)));
+}
+
+searchInput.addEventListener("input", () => {
+  currentSearch = searchInput.value;
+  searchClear.classList.toggle("show", currentSearch.length > 0);
+  renderCurrentView();
+});
+
+searchClear.addEventListener("click", () => {
+  searchInput.value = "";
+  currentSearch = "";
+  searchClear.classList.remove("show");
+  renderCurrentView();
+  searchInput.focus();
+});
 
 const STATUS_META = {
   normal: { label: "ปกติ", pillClass: "status-normal", cardClass: "card-normal" },
@@ -232,6 +348,11 @@ async function handleStatusChange(nuid, newStatus, selectEl, card) {
     selectEl.className = `status-pill ${STATUS_META[newStatus].pillClass}`;
     selectEl.dataset.previousValue = newStatus;
     applyCardStatusClass(card, newStatus);
+
+    // Keep the in-memory list in sync too, so the new status is still
+    // correct if the admin switches page or searches without a reload.
+    const cached = allUsers.find((u) => u.nuid === nuid);
+    if (cached) cached.studentStatus = newStatus;
   } catch (err) {
     console.error("Status update failed:", err);
     alert("เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");

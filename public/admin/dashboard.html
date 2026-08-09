@@ -110,6 +110,122 @@
       gap: 28px;
     }
 
+    /* Toolbar: search box + pagination, sits above the list so an
+       admin can either jump straight to a page (labelled with the
+       last 3 digits of the first/last Nu ID on it) or type to
+       search across every user regardless of page. */
+    .toolbar {
+      width: 100%;
+      max-width: 550px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 4px;
+    }
+
+    .search-box {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background-color: #1a2638;
+      border-radius: 16px;
+      padding: 10px 18px;
+    }
+
+    .search-box svg {
+      flex-shrink: 0;
+      opacity: 0.6;
+    }
+
+    .search-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #ffffff;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+
+    .search-input::placeholder {
+      color: #8896ab;
+    }
+
+    .search-clear {
+      background: none;
+      border: none;
+      color: #8896ab;
+      cursor: pointer;
+      font-size: 1rem;
+      display: none;
+      font-family: inherit;
+    }
+
+    .search-clear.show {
+      display: block;
+    }
+
+    .pagination {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .pagination.hidden {
+      display: none;
+    }
+
+    .page-btn {
+      background-color: #1a2638;
+      color: #d1d5db;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      line-height: 1.3;
+      text-align: center;
+    }
+
+    .page-btn .page-num {
+      display: block;
+      font-size: 0.95rem;
+    }
+
+    .page-btn .page-range {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 400;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+
+    .page-btn:hover {
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .page-btn.active {
+      background-color: #38bdf8;
+      color: #0b1524;
+      border-color: #38bdf8;
+    }
+
+    .page-btn.active .page-range {
+      opacity: 0.85;
+    }
+
+    .search-results-info {
+      font-size: 0.95rem;
+      color: #8896ab;
+    }
+
     /* Row Layout: Index Number + Card */
     .stat-row {
       display: flex;
@@ -305,6 +421,20 @@
     <h1>Stat</h1>
 
     <p id="loadingText" style="opacity:0.7;">กำลังโหลดรายชื่อ...</p>
+
+    <div class="toolbar" id="toolbar" style="display:none;">
+      <div class="search-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <circle cx="11" cy="11" r="7"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" id="searchInput" class="search-input" placeholder="ค้นหา: รหัสนิสิต, 3 ตัวท้าย, หรือชื่อ...">
+        <button type="button" id="searchClear" class="search-clear">✕</button>
+      </div>
+      <div class="pagination" id="pagination"></div>
+      <div class="search-results-info" id="searchResultsInfo" style="display:none;"></div>
+    </div>
+
     <div id="rowsContainer"></div>
   </main>
 
