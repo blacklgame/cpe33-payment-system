@@ -3,9 +3,6 @@
     "firebase": "^12.17.1",
     "@vercel/blob": "^2.0.0"
   },
-  "devDependencies": {
-    "firebase-admin": "^13.0.0"
-  },
   "allowScripts": {
     "@firebase/util@1.15.2": true,
     "protobufjs@7.6.5": true

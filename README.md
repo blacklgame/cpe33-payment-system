@@ -1,60 +1,67 @@
-"# cpe33-payment-system"
+# cpe33-payment-system
 
-## Firebase (Firestore + Auth only)
+A small Nu-ID-based payment tracker: students log in with their Nu ID,
+upload a payment slip image, and admins can see who's paid on the
+Stats page.
 
-`public/firebase.js` has your real config wired up to Firestore and
-anonymous Auth. Firebase **Storage is not used** -- Google now requires
-the paid Blaze plan for Storage even at tiny volumes, so payment slip
-images go to **Vercel Blob** instead (see below).
+- **Login roster + payment status:** Firebase Firestore
+- **Auth:** Firebase Anonymous Auth (gives each browser session a
+  signed-in token so security rules can require "must be signed in"
+  before writing -- there's no real password login)
+- **Slip images:** Vercel Blob (Firebase Storage now requires the paid
+  Blaze plan even for small usage, so images don't go through Firebase
+  at all)
+- **Hosting:** Vercel (static `public/` + one serverless function)
 
-1. In the Firebase Console for **cpe33-79979**, make sure these are
-   enabled (Build menu in the sidebar):
-   - **Firestore Database** — Create database if you haven't yet.
-   - **Authentication** -> Sign-in method -> enable **Anonymous**.
-2. Open `public/admin-seed.html` in a browser (just double-click it, or
-   serve the folder) and click **Seed Users** — this copies every entry
-   from `public/user.js` into the Firestore `users` collection. Delete
-   or block this page once you're done with it.
-3. In the Firebase Console, paste `firestore.rules` into
-   Firestore > Rules.
-4. Test it: log in with any Nu ID from `public/user.js` (e.g. `69360303`),
-   upload any image as a slip, then check the Stats page.
+## One-time Firebase setup
 
-`storage.rules` is no longer used and can be ignored/deleted -- it's
-left in the repo only for reference.
+1. In the Firebase Console for your project, enable:
+   - **Firestore Database** (Build menu -> Create database)
+   - **Authentication** -> Sign-in method -> **Anonymous**
+2. Paste the contents of `firestore.rules` into Firestore -> Rules,
+   and click **Publish**. (This is the step that's easy to forget --
+   editing the file locally does nothing until it's published here.)
+3. `public/firebase.js` already has this project's config wired up.
 
-## Image storage: Vercel Blob
+## Deploying (Vercel)
 
-Slip images upload from the browser to `/api/upload` (a Vercel
-serverless function), which forwards them to Vercel Blob with `put()`
-and returns the resulting URL. That URL is then saved on the
-`payments/{nuid}` Firestore doc, same as before.
+1. Push this repo to GitHub, then in Vercel: Add New -> Project ->
+   import the repo. Framework preset: **Other** (the included
+   `vercel.json` points it at `public/`).
+2. After the first deploy: project -> **Storage** tab -> Create
+   Database -> **Blob** (Public access). Linking it auto-sets the
+   `BLOB_READ_WRITE_TOKEN` env var that `api/upload.js` needs.
+3. Redeploy once more so the function picks up that env var.
 
-This is the simple version of the integration: since the file passes
-through the serverless function, uploads are capped at **4MB**
-(Vercel's function body limit is ~4.5MB, so 4MB leaves headroom). The
-client checks file size before upload and shows a Thai error message
-if it's too big. If you need to support larger, uncompressed phone
-photos later, switch to Vercel Blob's client-upload flow instead
-(`@vercel/blob/client`'s `upload()` + `handleUpload()`), which sends
-files directly from the browser to Blob and supports up to 500MB.
-
-This needs the site deployed on Vercel with a Blob store created and
-linked (Storage tab in the Vercel dashboard) — that automatically sets
-the `BLOB_READ_WRITE_TOKEN` env var that `api/upload.js` needs.
-
-### Data model
+## Data model
 - `users/{nuid}` — `{ name, email, stat }`, one doc per Nu ID.
+  Read-only from the client (`allow write: if false`).
 - `payments/{nuid}` — `{ paid, fileName, slipUrl, uploadedAt }`,
-  written when a student uploads a payment slip.
+  written when a student uploads a payment slip. Writable only by a
+  signed-in (anonymous) session.
 - Vercel Blob: `slips/{nuid}/{timestamp}_{filename}` — the uploaded
   slip images themselves.
 
-### Note on the pages
-Every page is loaded with plain `<script src="...">` tags (no bundler),
-so `public/firebase.js` and the app scripts use Firebase's **modular Web
-SDK loaded straight from Google's CDN via `import`** — that's why the
-`<script>` tags for `index.js` are marked `type="module"`. The
-`firebase` npm package in `package.json` isn't actually used by the
-site (there's no bundler to consume it) — it's safe to ignore or
-remove.
+## Updating the roster later
+The `users` collection is locked to read-only from the browser on
+purpose, so there's no in-app way to add/edit students. If the roster
+changes, the simplest options are editing documents directly in the
+Firebase Console's Firestore -> Data tab, or temporarily reopening
+`allow write` in `firestore.rules` for a one-off script/page the same
+way the initial roster was loaded.
+
+## About the upload size limit
+Slip uploads go through `/api/upload`, which forwards the file to
+Vercel Blob with `put()`. Since the file passes through the serverless
+function, uploads are capped at **4MB** (Vercel's function body limit
+is ~4.5MB). The client checks file size before upload and shows a Thai
+error message if it's too big. If larger, uncompressed phone photos
+need to be supported later, switch to Vercel Blob's client-upload flow
+(`@vercel/blob/client`'s `upload()` + `handleUpload()`), which sends
+files directly from the browser to Blob and supports up to 500MB.
+
+## Note on the pages
+Every page is loaded with plain `<script src="...">` tags (no
+bundler) -- `public/firebase.js` and the app scripts use Firebase's
+modular Web SDK loaded straight from Google's CDN via `import`, which
+is why `index.js` script tags are marked `type="module"`.
