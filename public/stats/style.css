@@ -118,6 +118,13 @@ h1 {
   border-left-color: #dc2626; /* Red */
 }
 
+.status-card.card-pending {
+  border-left-color: #eab308; /* Amber -- distinct from unpaid's red, so a
+                                   submitted-but-unreviewed slip is easy to
+                                   spot at a glance and isn't confused with
+                                   "haven't paid at all". */
+}
+
 .status-card-top {
   display: flex;
   justify-content: center;
@@ -141,6 +148,11 @@ h1 {
 
 .status-pill.status-unpaid {
   background-color: #dc2626;
+}
+
+.status-pill.status-pending {
+  background-color: #eab308; /* Amber */
+  color: #1a1204; /* Dark text for contrast on the lighter amber pill */
 }
 
 .profile-block {

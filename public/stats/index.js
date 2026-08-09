@@ -28,9 +28,15 @@ const STATUS_META = {
   },
   pending: {
     label: "รอตรวจสอบ",
+    pillClass: "status-pending",
+    cardClass: "card-pending",
+    note: "ได้รับสลิปของคุณแล้ว กำลังรอผู้ดูแลระบบตรวจสอบ"
+  },
+  rejected: {
+    label: "สลิปถูกปฏิเสธ",
     pillClass: "status-unpaid",
     cardClass: "card-unpaid",
-    note: "ได้รับสลิปของคุณแล้ว กำลังรอผู้ดูแลระบบตรวจสอบ"
+    note: "สลิปที่คุณส่งไม่ผ่านการตรวจสอบ กรุณาอัปโหลดสลิปใหม่ที่หน้าหลัก"
   }
 };
 
@@ -66,11 +72,18 @@ if (!raw) {
     .then((paymentSnap) => {
       const payment = paymentSnap.exists() ? paymentSnap.data() : null;
       const paid = !!(payment && payment.paid);
+      // Defensive: only treat this as "pending" if a slip is actually
+      // still attached (payment.slipUrl). reviewStatus alone isn't
+      // trusted here -- it's what caused the "stuck on pending forever
+      // after admin deletes the slip" bug, since a stale reviewStatus
+      // value with no slip behind it used to still render as pending.
       const studentStatus = payment && payment.studentStatus
         ? payment.studentStatus
         : paid
           ? "normal"
-          : (payment && payment.reviewStatus === "pending" ? "pending" : "unpaid");
+          : (payment && payment.reviewStatus === "pending" && payment.slipUrl
+              ? "pending"
+              : (payment && payment.reviewStatus === "rejected" ? "rejected" : "unpaid"));
 
       const meta = STATUS_META[studentStatus] || STATUS_META.unpaid;
 

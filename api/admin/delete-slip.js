@@ -93,6 +93,16 @@ module.exports = async function handler(request, response) {
     await paymentRef.set(
       {
         paid: false,
+        // BUG FIX: this used to leave reviewStatus:"pending" in place
+        // after a delete, since only the slip fields below were
+        // cleared. The student's Stats page reads reviewStatus on its
+        // own (not "does a slip still exist"), so a deleted slip kept
+        // showing as "รอตรวจสอบ / pending review" forever with no way
+        // to re-upload out of that state from the student's point of
+        // view. Explicitly setting it to "rejected" here (rather than
+        // just deleting the field) also lets the Stats page tell a
+        // rejected slip apart from someone who never uploaded one.
+        reviewStatus: "rejected",
         slipUrl: admin.firestore.FieldValue.delete(),
         slipPublicId: admin.firestore.FieldValue.delete(),
         fileName: admin.firestore.FieldValue.delete(),

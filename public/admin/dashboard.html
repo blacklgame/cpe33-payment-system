@@ -167,6 +167,27 @@
       display: block;
     }
 
+    /* Toggle button: filters the list down to only users with a slip
+       awaiting admin approval. Amber to match the pending status
+       color used elsewhere, so it's visually tied to what it filters. */
+    .pending-filter-btn {
+      align-self: center;
+      background-color: transparent;
+      color: #eab308;
+      border: 1.5px solid #eab308;
+      border-radius: 16px;
+      padding: 8px 18px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .pending-filter-btn.active {
+      background-color: #eab308;
+      color: #1a1204;
+    }
+
     .pagination {
       width: 100%;
       display: flex;
@@ -274,6 +295,14 @@
 
     .user-card.card-unpaid {
       border-left-color: #dc2626; /* Red */
+    }
+
+    /* A user row whose slip is awaiting approval gets this amber
+       border regardless of their studentStatus pill (usually
+       "unpaid" still, since paid only flips true once approved) --
+       makes a pending row easy to spot in the list at a glance. */
+    .user-card.pending-review {
+      border-left-color: #eab308; /* Amber */
     }
 
     /* Status control -- a <select> styled as a colored pill, sitting
@@ -431,6 +460,7 @@
         <input type="text" id="searchInput" class="search-input" placeholder="ค้นหา: รหัสนิสิต, 3 ตัวท้าย, หรือชื่อ...">
         <button type="button" id="searchClear" class="search-clear">✕</button>
       </div>
+      <button type="button" id="pendingFilterToggle" class="pending-filter-btn">รอตรวจสอบ (Pending approval)</button>
       <div class="pagination" id="pagination"></div>
       <div class="search-results-info" id="searchResultsInfo" style="display:none;"></div>
     </div>

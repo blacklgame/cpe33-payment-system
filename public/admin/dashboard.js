@@ -33,6 +33,7 @@ const pagination = document.getElementById("pagination");
 const searchInput = document.getElementById("searchInput");
 const searchClear = document.getElementById("searchClear");
 const searchResultsInfo = document.getElementById("searchResultsInfo");
+const pendingFilterToggle = document.getElementById("pendingFilterToggle");
 
 // How many users each page shows. Pagination labels (below) are built
 // from whatever's actually loaded, so this is the only number to
@@ -45,6 +46,7 @@ const PAGE_SIZE = 10;
 let allUsers = [];
 let currentPage = 1;
 let currentSearch = "";
+let showPendingOnly = false;
 
 // Fetch admin whitelist once and reuse. Lives here (not in admin.js)
 // because the dashboard also needs it for the auth-state check below.
@@ -177,6 +179,8 @@ function renderPagination() {
       searchInput.value = "";
       currentSearch = "";
       searchClear.classList.remove("show");
+      showPendingOnly = false;
+      pendingFilterToggle.classList.remove("active");
       renderCurrentView();
     });
     pagination.appendChild(btn);
@@ -184,8 +188,8 @@ function renderPagination() {
 }
 
 function renderCurrentView() {
-  if (currentSearch) {
-    renderSearchResults();
+  if (currentSearch || showPendingOnly) {
+    renderFilteredResults();
   } else {
     renderPageRows();
   }
@@ -205,26 +209,39 @@ function renderPageRows() {
   pageUsers.forEach((u) => rowsContainer.appendChild(buildRow(u)));
 }
 
-function renderSearchResults() {
+// Combines the search box and the "pending approval only" toggle --
+// either or both can be active at once. Shown as a flat list across
+// the whole roster (like search always was), not one page at a time.
+function renderFilteredResults() {
   pagination.classList.add("hidden");
 
   const term = currentSearch.trim().toLowerCase();
   const matches = allUsers.filter((u) => {
-    return (
+    const matchesTerm = !term || (
       u.nuid.toLowerCase().includes(term) ||
       u.name.toLowerCase().includes(term) ||
       u.email.toLowerCase().includes(term)
     );
+    const matchesPending = !showPendingOnly || u.pendingReview;
+    return matchesTerm && matchesPending;
   });
 
   searchResultsInfo.style.display = "block";
   searchResultsInfo.textContent = matches.length
     ? `พบ ${matches.length} รายการ`
-    : "ไม่พบผู้ใช้ที่ตรงกับคำค้นหา";
+    : showPendingOnly
+      ? "ไม่มีรายการที่รอตรวจสอบ"
+      : "ไม่พบผู้ใช้ที่ตรงกับคำค้นหา";
 
   rowsContainer.innerHTML = "";
   matches.forEach((u) => rowsContainer.appendChild(buildRow(u)));
 }
+
+pendingFilterToggle.addEventListener("click", () => {
+  showPendingOnly = !showPendingOnly;
+  pendingFilterToggle.classList.toggle("active", showPendingOnly);
+  renderCurrentView();
+});
 
 searchInput.addEventListener("input", () => {
   currentSearch = searchInput.value;
@@ -259,6 +276,13 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
   const card = document.createElement("div");
   card.className = "user-card";
   applyCardStatusClass(card, studentStatus);
+  // Amber border overrides the normal status color while a slip is
+  // awaiting approval, so it stands out in the list regardless of
+  // studentStatus (usually still "unpaid" at this point, since paid
+  // only flips once approved).
+  if (pendingReview) {
+    card.classList.add("pending-review");
+  }
 
   // Status control: a <select> styled as a colored pill. Admins click
   // it and choose one of the three states -- picking a new value
