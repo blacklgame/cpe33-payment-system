@@ -22,10 +22,9 @@
 import {
   GoogleAuthProvider,
   signInWithRedirect,
-  getRedirectResult,
   signOut
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { auth } from "../firebase.js";
+import { auth, redirectResultPromise } from "../firebase.js";
 
 const signInBtn = document.querySelector(".btn-google");
 const errorText = document.getElementById("errorText");
@@ -62,12 +61,16 @@ signInBtn.addEventListener("click", async () => {
 });
 
 // Runs on every load of this page, including the one right after
-// Google redirects back here. getRedirectResult() resolves with the
-// signed-in user on that return trip, and with null on a normal,
-// unrelated page load (so this is a no-op most of the time).
+// Google redirects back here. redirectResultPromise (from firebase.js)
+// resolves with the signed-in user on that return trip, and with null
+// on a normal, unrelated page load (so this is a no-op most of the
+// time). It resolves the SAME getRedirectResult() call firebase.js
+// already made -- Firebase only hands back that result once, so this
+// page must reuse it rather than asking again itself, or it would
+// always see null here.
 (async () => {
   try {
-    const result = await getRedirectResult(auth);
+    const result = await redirectResultPromise;
     if (!result) return;
 
     const email = result.user.email;
