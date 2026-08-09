@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Stat - Payment System</title>
+  <!-- Google Fonts: Inter & Noto Sans Thai -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+Thai:wght@300;400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', 'Noto Sans Thai', sans-serif;
+    }
+
+    body {
+      background-color: #0b1524;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Navbar */
+    header {
+      width: 100%;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      background-color: #ffffff;
+      color: #000000;
+      font-weight: 700;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 1.1rem;
+    }
+
+    .version {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .welcome-msg {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-link {
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 1.2rem;
+      font-weight: 400;
+    }
+
+    .nav-link:hover {
+      opacity: 0.8;
+    }
+
+    /* Main Content Container */
+    main {
+      width: 100%;
+      max-width: 900px;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    /* Row Layout: Index Number + Card */
+    .stat-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      gap: 32px;
+    }
+
+    /* Index Number on the Left */
+    .row-index {
+      font-size: 2.2rem;
+      font-weight: 700;
+      width: 40px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* User Stats Card */
+    .user-card {
+      background-color: #1a2638;
+      width: 100%;
+      max-width: 550px;
+      border-radius: 28px;
+      padding: 28px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    /* Pill Badge on Left Side of Card */
+    .status-pill {
+      position: absolute;
+      left: 24px;
+      top: 50%;
+      transform: translateY(-50%);
+      background-color: #e5e7eb;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .status-paid {
+      color: #16a34a; /* Green */
+    }
+
+    .status-unpaid {
+      color: #dc2626; /* Red */
+    }
+
+    /* User Info Container */
+    .avatar-placeholder {
+      width: 64px;
+      height: 64px;
+      background-color: #435e7d;
+      border-radius: 50%;
+      margin-bottom: 12px;
+    }
+
+    .user-name {
+      font-size: 1.3rem;
+      font-weight: 400;
+      margin-bottom: 4px;
+    }
+
+    .user-email {
+      font-size: 1.1rem;
+      color: #d1d5db;
+      font-weight: 300;
+    }
+
+    /* Card Actions (Bottom-Right) */
+    .card-actions {
+      position: absolute;
+      right: 28px;
+      bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .action-btn-delete {
+      color: #ff0000;
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .action-btn-view {
+      color: #38bdf8;
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 400;
+    }
+
+    .action-btn-delete:hover,
+    .action-btn-view:hover {
+      text-decoration: underline;
+    }
+
+    /* Responsive adjustment for small screens */
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .stat-row {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .row-index {
+        width: 100%;
+        text-align: center;
+      }
+
+      .status-pill {
+        position: static;
+        transform: none;
+        margin-bottom: 16px;
+      }
+
+      .card-actions {
+        position: static;
+        align-items: center;
+        margin-top: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header>
+    <div class="brand">
+      <span class="badge">CPE</span>
+      <span class="version">33</span>
+    </div>
+    
+    <div class="welcome-msg" id="welcomeMsg">Welcome</div>
+
+    <nav class="nav-links">
+      <a href="../index.html" class="nav-link">หน้าหลัก</a>
+      <a href="#" class="nav-link" id="logoutLink">ออกจากระบบ</a>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <h1>Stat</h1>
+
+    <p id="loadingText" style="opacity:0.7;">กำลังโหลดรายชื่อ...</p>
+    <div id="rowsContainer"></div>
+  </main>
+
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>

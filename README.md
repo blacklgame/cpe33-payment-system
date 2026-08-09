@@ -86,3 +86,55 @@ Every page is loaded with plain `<script src="...">` tags (no
 bundler) -- `public/firebase.js` and the app scripts use Firebase's
 modular Web SDK loaded straight from Google's CDN via `import`, which
 is why `index.js` script tags are marked `type="module"`.
+
+## Admin dashboard setup
+
+The admin dashboard (`public/admin/`) lets a whitelisted admin see
+every user 1-91, view their uploaded slip, and delete a slip that
+turns out to be fake (which also resets that student back to
+unpaid). It's gated by Google Sign-In restricted to specific
+`@nu.ac.th` addresses.
+
+Two layers of checking happen:
+- **Client-side** (`admin.js`, `dashboard.js`) -- decides whether the
+  login/dashboard *pages* let someone in. This is just a UI gate and
+  can be bypassed by anyone editing JS in devtools.
+- **Server-side** (`api/admin/delete-slip.js`) -- the real security
+  check for the delete action, since it independently re-verifies
+  the signed-in user's identity with Firebase's own servers.
+
+**You must edit the same `ADMIN_EMAILS` list in all three files**
+(`public/admin/admin.js`, `public/admin/dashboard.js`,
+`api/admin/delete-slip.js`) with your real `@nu.ac.th` address(es).
+
+### 1. Enable Google Sign-In in Firebase
+Firebase Console -> Authentication -> Sign-in method -> enable
+**Google**.
+
+### 2. Authorize your Vercel domain
+Firebase Console -> Authentication -> Settings -> Authorized domains
+-> add your Vercel domain (e.g. `cpe33-payment.vercel.app`). Without
+this step, Google Sign-In fails with an `auth/unauthorized-domain`
+error -- easy to miss.
+
+### 3. Get a Firebase service account key
+Same credential used by `scripts/seed-users.js`:
+1. Firebase Console -> Project settings -> Service accounts ->
+   Generate new private key. Save the downloaded file somewhere
+   local (never commit it).
+2. Base64-encode it: `node -e "console.log(require('fs').readFileSync('serviceAccountKey.json').toString('base64'))"`
+3. Copy the output.
+
+### 4. Get Cloudinary API credentials
+Different from the unsigned upload preset you set up earlier.
+Cloudinary Console -> Settings (gear) -> **API Keys** -> copy the
+**API Key** and **API Secret**.
+
+### 5. Set Vercel environment variables
+Vercel Project -> Settings -> Environment Variables, add:
+- `FIREBASE_SERVICE_ACCOUNT_BASE64` = the base64 string from step 3
+- `CLOUDINARY_API_KEY` = from step 4
+- `CLOUDINARY_API_SECRET` = from step 4
+
+Redeploy after adding these -- Vercel only picks up new env vars on
+the next deploy.
