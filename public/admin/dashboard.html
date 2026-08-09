@@ -98,6 +98,18 @@
       text-align: center;
     }
 
+    /* Rows container: gives vertical breathing room between each
+       user row (without this, all rows are crammed together since
+       they're nested inside this div, not direct children of
+       <main>, so <main>'s own gap never reaches them). */
+    #rowsContainer {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+    }
+
     /* Row Layout: Index Number + Card */
     .stat-row {
       display: flex;
