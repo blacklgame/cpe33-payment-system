@@ -58,9 +58,12 @@ Vercel Blob's 1GB cap for ~91 students' worth of slips.
 ## Data model
 - `users/{nuid}` — `{ name, email, stat }`, one doc per Nu ID.
   Read-only from the client (`allow write: if false`).
-- `payments/{nuid}` — `{ paid, fileName, slipUrl, uploadedAt }`,
+- `payments/{nuid}` — `{ paid, fileName, slipUrl, uploadedAt, studentStatus }`,
   written when a student uploads a payment slip. Writable only by a
-  signed-in (anonymous) session.
+  signed-in (anonymous) session. `studentStatus` (`"normal" |
+  "termination" | "unpaid"`) is a separate admin-only override, set
+  via `api/admin/set-status.js` -- not written by the student upload
+  flow.
 - Cloudinary: `slips/{nuid}/{timestamp}_{filename}` — the uploaded
   slip images themselves (public_id under the `slips/` folder).
 
@@ -90,22 +93,30 @@ is why `index.js` script tags are marked `type="module"`.
 ## Admin dashboard setup
 
 The admin dashboard (`public/admin/`) lets a whitelisted admin see
-every user 1-91, view their uploaded slip, and delete a slip that
-turns out to be fake (which also resets that student back to
-unpaid). It's gated by Google Sign-In restricted to specific
-`@nu.ac.th` addresses.
+every user 1-91, view their uploaded slip, delete a slip that turns
+out to be fake (which also resets that student back to unpaid), and
+set each student's status to **ปกติ/Normal** (green), **พ้นสภาพ/
+Termination** (orange), or **ยังไม่จ่าย/Haven't paid** (red) from a
+dropdown on their card. It's gated by Google Sign-In restricted to
+specific `@nu.ac.th` addresses.
 
 Two layers of checking happen:
 - **Client-side** (`admin.js`, `dashboard.js`) -- decides whether the
   login/dashboard *pages* let someone in. This is just a UI gate and
   can be bypassed by anyone editing JS in devtools.
-- **Server-side** (`api/admin/delete-slip.js`) -- the real security
-  check for the delete action, since it independently re-verifies
-  the signed-in user's identity with Firebase's own servers.
+- **Server-side** (`api/admin/delete-slip.js`, `api/admin/set-status.js`)
+  -- the real security check for the delete and status-change actions,
+  since each independently re-verifies the signed-in user's identity
+  with Firebase's own servers. The status field specifically has to
+  go through here rather than a direct client write, because
+  `firestore.rules` lets any signed-in session (including an
+  anonymous student session) write to `payments/{nuid}` -- a field
+  that can mark someone "terminated" can't be left open to that.
 
-**You must edit the same `ADMIN_EMAILS` list in all three files**
+**You must edit the same `ADMIN_EMAILS` list in all four files**
 (`public/admin/admin.js`, `public/admin/dashboard.js`,
-`api/admin/delete-slip.js`) with your real `@nu.ac.th` address(es).
+`api/admin/delete-slip.js`, `api/admin/set-status.js`) with your real
+`@nu.ac.th` address(es).
 
 ### 1. Enable Google Sign-In in Firebase
 Firebase Console -> Authentication -> Sign-in method -> enable

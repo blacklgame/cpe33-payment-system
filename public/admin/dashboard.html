@@ -131,12 +131,15 @@
     /* User Stats Card -- everything below is in normal document
        flow (nothing absolutely positioned), so the card always
        grows to fit its content and the pill/actions can never
-       overlap the name or email, no matter how long they are. */
+       overlap the name or email, no matter how long they are. A
+       left border color-codes the whole card by status so it's
+       readable at a glance while scanning the list. */
     .user-card {
       background-color: #1a2638;
       width: 100%;
       max-width: 550px;
       border-radius: 28px;
+      border-left: 6px solid transparent;
       padding: 24px 28px;
       display: flex;
       flex-direction: column;
@@ -145,23 +148,61 @@
       gap: 14px;
     }
 
-    /* Pill Badge -- sits above the user info now instead of
-       floating on the card's left edge. */
+    .user-card.card-normal {
+      border-left-color: #16a34a; /* Green */
+    }
+
+    .user-card.card-termination {
+      border-left-color: #f97316; /* Orange */
+    }
+
+    .user-card.card-unpaid {
+      border-left-color: #dc2626; /* Red */
+    }
+
+    /* Status control -- a <select> styled as a colored pill, sitting
+       above the user info. Clicking it opens the native dropdown so
+       an admin can pick a new status directly; the color changes
+       immediately to match whichever status is selected. */
     .status-pill {
       align-self: center;
-      background-color: #e5e7eb;
-      padding: 8px 18px;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      color: #ffffff;
+      padding: 8px 34px 8px 20px;
       border-radius: 30px;
       font-size: 1rem;
       font-weight: 700;
+      font-family: inherit;
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      background-size: 12px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     }
 
-    .status-paid {
-      color: #16a34a; /* Green */
+    .status-pill option {
+      color: #000000;
+      background-color: #ffffff;
+    }
+
+    .status-pill:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .status-normal {
+      background-color: #16a34a; /* Green */
+    }
+
+    .status-termination {
+      background-color: #f97316; /* Orange */
     }
 
     .status-unpaid {
-      color: #dc2626; /* Red */
+      background-color: #dc2626; /* Red */
     }
 
     /* User Info Container */

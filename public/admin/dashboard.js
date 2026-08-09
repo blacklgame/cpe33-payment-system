@@ -83,6 +83,16 @@ async function loadDashboard() {
       const payment = paymentsByNuid[nuid] || null;
       const paid = !!(payment && payment.paid);
 
+      // studentStatus is a manual admin override. Older records that
+      // predate this feature won't have it yet, so fall back to the
+      // paid flag: paid -> "normal", not paid -> "unpaid". Once an
+      // admin picks a status from the dropdown it's stored explicitly
+      // and takes over from here on, including "termination" which
+      // paid/unpaid alone can't represent.
+      const studentStatus = payment && payment.studentStatus
+        ? payment.studentStatus
+        : (paid ? "normal" : "unpaid");
+
       rowsContainer.appendChild(
         buildRow({
           index: index + 1,
@@ -90,6 +100,7 @@ async function loadDashboard() {
           name: userData.name || "-",
           email: userData.email || "-",
           paid,
+          studentStatus,
           slipUrl: payment ? payment.slipUrl : null,
           slipPublicId: payment ? payment.slipPublicId : null
         })
@@ -101,7 +112,13 @@ async function loadDashboard() {
   }
 }
 
-function buildRow({ index, nuid, name, email, paid, slipUrl, slipPublicId }) {
+const STATUS_META = {
+  normal: { label: "ปกติ", pillClass: "status-normal", cardClass: "card-normal" },
+  termination: { label: "พ้นสภาพ", pillClass: "status-termination", cardClass: "card-termination" },
+  unpaid: { label: "ยังไม่จ่าย", pillClass: "status-unpaid", cardClass: "card-unpaid" }
+};
+
+function buildRow({ index, nuid, name, email, paid, studentStatus, slipUrl, slipPublicId }) {
   const row = document.createElement("div");
   row.className = "stat-row";
   row.dataset.nuid = nuid;
@@ -113,11 +130,25 @@ function buildRow({ index, nuid, name, email, paid, slipUrl, slipPublicId }) {
 
   const card = document.createElement("div");
   card.className = "user-card";
+  applyCardStatusClass(card, studentStatus);
 
-  const pill = document.createElement("div");
-  pill.className = `status-pill ${paid ? "status-paid" : "status-unpaid"}`;
-  pill.textContent = paid ? "จ่ายแล้ว" : "ยังไม่จ่าย";
-  card.appendChild(pill);
+  // Status control: a <select> styled as a colored pill. Admins click
+  // it and choose one of the three states -- picking a new value
+  // saves it via the server (see handleStatusChange).
+  const statusSelect = document.createElement("select");
+  statusSelect.className = `status-pill ${STATUS_META[studentStatus].pillClass}`;
+  statusSelect.dataset.previousValue = studentStatus;
+  Object.entries(STATUS_META).forEach(([value, meta]) => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = meta.label;
+    if (value === studentStatus) opt.selected = true;
+    statusSelect.appendChild(opt);
+  });
+  statusSelect.addEventListener("change", () => {
+    handleStatusChange(nuid, statusSelect.value, statusSelect, card);
+  });
+  card.appendChild(statusSelect);
 
   const avatar = document.createElement("div");
   avatar.className = "avatar-placeholder";
@@ -165,6 +196,44 @@ function buildRow({ index, nuid, name, email, paid, slipUrl, slipPublicId }) {
   card.appendChild(actions);
   row.appendChild(card);
   return row;
+}
+
+function applyCardStatusClass(card, studentStatus) {
+  Object.values(STATUS_META).forEach((meta) => card.classList.remove(meta.cardClass));
+  card.classList.add(STATUS_META[studentStatus].cardClass);
+}
+
+async function handleStatusChange(nuid, newStatus, selectEl, card) {
+  const previousValue = selectEl.dataset.previousValue;
+  selectEl.disabled = true;
+
+  try {
+    const idToken = await currentAdminUser.getIdToken();
+
+    const res = await fetch("/api/admin/set-status", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`
+      },
+      body: JSON.stringify({ nuid, status: newStatus })
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || "Status update failed");
+    }
+
+    selectEl.className = `status-pill ${STATUS_META[newStatus].pillClass}`;
+    selectEl.dataset.previousValue = newStatus;
+    applyCardStatusClass(card, newStatus);
+  } catch (err) {
+    console.error("Status update failed:", err);
+    alert("เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    selectEl.value = previousValue;
+  } finally {
+    selectEl.disabled = false;
+  }
 }
 
 async function handleDelete(nuid, slipPublicId, triggerEl) {
