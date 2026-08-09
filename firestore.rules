@@ -3,15 +3,19 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Roster of students (Nu ID -> name/email/stat).
-    // Readable by the app for login lookups. Writable only by a
-    // signed-in session -- same anonymous-auth gate as payments below
-    // -- so admin-seed.html can write, but random API calls can't.
-    // IMPORTANT: after you finish seeding, tighten this back to
-    // `allow write: if false;` and republish, so students can't edit
-    // their own name/email/stat from the browser console.
+    // Readable by the app for login lookups.
+    // TEMPORARY: writes are wide open right now (no auth check) so
+    // admin-seed.html can seed the roster with zero dependency on
+    // anonymous-auth working correctly. This is intentionally the
+    // simplest possible rule to isolate "is publishing working at
+    // all" from every other moving part.
+    // IMPORTANT: once users has data in it, change this back to
+    // `allow write: if false;` and republish -- otherwise anyone
+    // with your site's link can rewrite any student's name/email/stat
+    // straight from the browser console.
     match /users/{nuid} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if true;
     }
 
     // Payment status + slip metadata, keyed by Nu ID.

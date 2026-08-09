@@ -9,6 +9,7 @@
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     #log { margin-top: 20px; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; }
     .error { color: #ff8080; }
+    .ok { color: #80ff9f; }
   </style>
 </head>
 <body>
@@ -20,44 +21,34 @@
   </p>
   <p><strong>Delete this page (or block it with rules) once you're done —
   it's not meant to stay live on a public site.</strong></p>
-  <p><strong>Before seeding:</strong> firestore.rules must currently allow
-  writes to <code>users</code> (temporarily, for this one-time step) —
-  <code>allow write: if request.auth != null;</code> — and be published
-  in the Firebase Console. Lock it back to
-  <code>allow write: if false;</code> once seeding is done.</p>
+  <p><strong>Before seeding:</strong> firestore.rules must have this exact
+  block published in the Firebase Console (Firestore &rarr; Rules &rarr; paste
+  &rarr; Publish):</p>
+  <pre>match /users/{nuid} {
+  allow read: if true;
+  allow write: if true;
+}</pre>
+  <p>This page does not sign in or check auth at all -- it writes as soon
+  as you click the button. If it still fails, the rule above genuinely
+  isn't live yet; that's the only thing left that can cause a failure
+  here.</p>
 
-  <button id="seedBtn" disabled>Signing in...</button>
+  <button id="seedBtn">Seed Users</button>
   <div id="log"></div>
 
   <script src="user.js"></script>
   <script type="module">
     import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { db, auth } from "./firebase.js";
+    import { db } from "./firebase.js";
 
     const logEl = document.getElementById("log");
     const seedBtn = document.getElementById("seedBtn");
-    const log = (msg, isError) => {
+    const log = (msg, cls) => {
       const line = document.createElement("div");
-      if (isError) line.className = "error";
+      if (cls) line.className = cls;
       line.textContent = msg;
       logEl.appendChild(line);
     };
-
-    // Don't let anyone click Seed Users before the anonymous sign-in
-    // (from firebase.js) actually finishes -- writing before that
-    // resolves means request.auth is still null and every write gets
-    // rejected by firestore.rules, exactly like the silent failure
-    // this page used to have.
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        seedBtn.disabled = false;
-        seedBtn.textContent = "Seed Users";
-      } else {
-        seedBtn.disabled = false;
-        seedBtn.textContent = "Signing in...";
-      }
-    });
 
     seedBtn.addEventListener("click", async () => {
       seedBtn.disabled = true;
@@ -88,13 +79,14 @@
           log(`Wrote ${written} / ${ids.length}...`);
         }
 
-        log("Done! Now lock firestore.rules back to `allow write: if false;` for users and republish.");
+        log("Done! Now go set firestore.rules users back to `allow write: if false;` and republish.", "ok");
+        seedBtn.textContent = "Done";
       } catch (err) {
-        // This is the part the old version was missing -- surface the
-        // real Firestore error (e.g. "permission-denied" if rules
-        // aren't published yet) instead of failing silently.
         console.error(err);
-        log(`Failed after writing ${written} / ${ids.length}: ${err.code || ""} ${err.message}`, true);
+        log(`Failed after writing ${written} / ${ids.length}: ${err.code || ""} ${err.message}`, "error");
+        if (err.code === "permission-denied") {
+          log("This means the rule above genuinely isn't published yet on this project. Go republish it, wait a few seconds, then click Retry.", "error");
+        }
         seedBtn.disabled = false;
         seedBtn.textContent = "Retry";
       }
