@@ -70,7 +70,10 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const publicIdRe = new RegExp("^slips/" + nuid + "/.+");
+    // Escape any regex metacharacters in nuid (e.g. ".", "*") before
+    // interpolating -- raw interpolation would turn them into wildcards.
+    const escapedNuid = nuid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const publicIdRe = new RegExp("^slips/" + escapedNuid + "/.+");
     if (!slipPublicId || typeof slipPublicId !== "string" || !publicIdRe.test(slipPublicId)) {
       response.status(400).json({ error: "Invalid slipPublicId" });
       return;

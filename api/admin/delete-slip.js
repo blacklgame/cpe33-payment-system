@@ -23,7 +23,7 @@ const cloudinary = require("cloudinary").v2;
    (Cloud name is hardcoded below to match your existing setup --
    it's not secret, so no env var needed for it.)
 ------------------------------------------------------------ */
-const ADMIN_EMAILS = require("../../public/admin/admin-emails.json");
+const ADMIN_EMAILS = require("../../config/admin-emails.json");
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(

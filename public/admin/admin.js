@@ -33,21 +33,19 @@
 ------------------------------------------------------------ */
 import {
   GoogleAuthProvider,
-  signInWithPopup,
-  signOut
+  signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { auth } from "../firebase.js";
 
 const signInBtn = document.querySelector(".btn-google");
 const errorText = document.getElementById("errorText");
 
-const adminEmailsPromise = fetch("./admin-emails.json").then((res) => res.json());
-
-async function isWhitelisted(email) {
-  if (!email) return false;
-  const adminEmails = await adminEmailsPromise;
-  return adminEmails.map((e) => e.toLowerCase()).includes(email.toLowerCase());
-}
+// Note: We no longer fetch admin-emails.json here -- the file has
+// been moved out of the public folder and is no longer accessible
+// from the browser. The real whitelist check happens server-side
+// (api/admin/check-admin.js). The dashboard.js auth gate (which runs
+// immediately on load) will redirect non-admins back to this login
+// page before any data is shown.
 
 function describeError(err) {
   switch (err.code) {
@@ -75,15 +73,11 @@ signInBtn.addEventListener("click", async () => {
     provider.setCustomParameters({ hd: "nu.ac.th" });
 
     const result = await signInWithPopup(auth, provider);
-    const email = result.user.email;
 
-    if (!(await isWhitelisted(email))) {
-      await signOut(auth);
-      errorText.textContent = `บัญชี ${email} ไม่มีสิทธิ์เข้าถึงหน้าแอดมิน`;
-      signInBtn.disabled = false;
-      return;
-    }
-
+    // The real admin whitelist check happens on the server (dashboard.js
+    // calls /api/admin/check-admin before rendering anything). We just
+    // redirect to the dashboard after a successful Google sign-in; the
+    // dashboard will immediately bounce non-admins back here.
     window.location.href = "./dashboard.html";
   } catch (err) {
     console.error("Admin sign-in failed:", err);

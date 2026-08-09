@@ -48,20 +48,35 @@ let currentPage = 1;
 let currentSearch = "";
 let showPendingOnly = false;
 
-// Fetch admin whitelist once and reuse. Lives here (not in admin.js)
-// because the dashboard also needs it for the auth-state check below.
-const adminEmailsPromise = fetch("./admin-emails.json").then((res) => res.json());
-
-async function isWhitelisted(email) {
-  if (!email) return false;
-  const adminEmails = await adminEmailsPromise;
-  return adminEmails.map((e) => e.toLowerCase()).includes(email.toLowerCase());
+// Checks whether the currently signed-in user is an approved admin by
+// asking the server (which reads admin-emails.json server-side, where
+// it is no longer publicly accessible). Uses the Firebase ID token so
+// the check can't be spoofed from the browser.
+async function isAdminOnServer(user) {
+  if (!user) return false;
+  try {
+    const idToken = await user.getIdToken();
+    const res = await fetch("/api/admin/check-admin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`
+      }
+    });
+    if (!res.ok) return false;
+    const body = await res.json();
+    return body.isAdmin === true;
+  } catch {
+    return false;
+  }
 }
 
 let currentAdminUser = null;
 
+const mainContent = document.getElementById("mainContent");
+
 onAuthStateChanged(auth, async (user) => {
-  if (!user || !(await isWhitelisted(user.email))) {
+  if (!user || !(await isAdminOnServer(user))) {
     // Not signed in, or signed in but not an approved admin -- bounce
     // back to the login page either way.
     window.location.href = "./login.html";
@@ -69,6 +84,8 @@ onAuthStateChanged(auth, async (user) => {
   }
   currentAdminUser = user;
   welcomeMsg.textContent = `Welcome ${user.email}`;
+  // Only reveal the page content after we've confirmed this is a real admin.
+  mainContent.style.display = "flex";
   loadDashboard();
 });
 
@@ -325,7 +342,7 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
     const viewLink = document.createElement("a");
     viewLink.href = slipUrl;
     viewLink.target = "_blank";
-    viewLink.rel = "noopener";
+    viewLink.rel = "noopener noreferrer";
     viewLink.className = "action-btn-view";
     viewLink.textContent = "ดูสลิปที่อัพโหลด";
     actions.appendChild(viewLink);

@@ -25,7 +25,7 @@ const admin = require("firebase-admin");
    Project -> Settings -> Environment Variables):
    - FIREBASE_SERVICE_ACCOUNT_BASE64
 ------------------------------------------------------------ */
-const ADMIN_EMAILS = require("../../public/admin/admin-emails.json");
+const ADMIN_EMAILS = require("../../config/admin-emails.json");
 
 const VALID_STATUSES = ["normal", "termination", "unpaid"];
 
