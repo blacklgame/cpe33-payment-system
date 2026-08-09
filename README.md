@@ -7,7 +7,7 @@ anonymous Auth. Firebase **Storage is not used** -- Google now requires
 the paid Blaze plan for Storage even at tiny volumes, so payment slip
 images go to **Vercel Blob** instead (see below).
 
-1. In the Firebase Console for **cpe33-7f8f5**, make sure these are
+1. In the Firebase Console for **cpe33-79979**, make sure these are
    enabled (Build menu in the sidebar):
    - **Firestore Database** — Create database if you haven't yet.
    - **Authentication** -> Sign-in method -> enable **Anonymous**.
