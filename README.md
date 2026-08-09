@@ -113,10 +113,19 @@ Two layers of checking happen:
   anonymous student session) write to `payments/{nuid}` -- a field
   that can mark someone "terminated" can't be left open to that.
 
-**You must edit the same `ADMIN_EMAILS` list in all four files**
-(`public/admin/admin.js`, `public/admin/dashboard.js`,
-`api/admin/delete-slip.js`, `api/admin/set-status.js`) with your real
-`@nu.ac.th` address(es).
+**To add or remove an admin, edit only `public/admin/admin-emails.json`**
+-- a plain JSON array of `@nu.ac.th` addresses. All four checks above
+(both client pages, both server functions) read from this single
+file, so there's nowhere else to update:
+
+```json
+[
+  "natthaphatb69@nu.ac.th",
+  "another.admin@nu.ac.th"
+]
+```
+
+Commit and redeploy after editing it.
 
 ### 1. Enable Google Sign-In in Firebase
 Firebase Console -> Authentication -> Sign-in method -> enable

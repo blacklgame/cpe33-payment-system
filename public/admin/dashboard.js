@@ -4,15 +4,17 @@
    (which also resets that user back to unpaid).
 
    This client-side whitelist decides whether the page renders at
-   all -- it is NOT the real security boundary. The delete action
-   is re-checked independently on the server (api/admin/delete-slip.js),
-   which is the only place that actually matters for security, since
-   client-side checks can always be bypassed in devtools.
------------------------------------------------------------- */
-const ADMIN_EMAILS = [
-  "natthaphatb69@nu.ac.th"
-];
+   all -- it is NOT the real security boundary. The delete/status
+   actions are re-checked independently on the server
+   (api/admin/delete-slip.js, api/admin/set-status.js), which is the
+   only place that actually matters for security, since client-side
+   checks can always be bypassed in devtools.
 
+   The admin email list itself lives in ONE place --
+   admin-emails.json, next to this file -- and every page/function
+   reads from it, so adding or removing an admin only ever means
+   editing that one JSON file.
+------------------------------------------------------------ */
 import {
   collection,
   getDocs,
@@ -27,15 +29,18 @@ const loadingText = document.getElementById("loadingText");
 const rowsContainer = document.getElementById("rowsContainer");
 const logoutLink = document.getElementById("logoutLink");
 
-function isWhitelisted(email) {
+const adminEmailsPromise = fetch("./admin-emails.json").then((res) => res.json());
+
+async function isWhitelisted(email) {
   if (!email) return false;
-  return ADMIN_EMAILS.map((e) => e.toLowerCase()).includes(email.toLowerCase());
+  const adminEmails = await adminEmailsPromise;
+  return adminEmails.map((e) => e.toLowerCase()).includes(email.toLowerCase());
 }
 
 let currentAdminUser = null;
 
-onAuthStateChanged(auth, (user) => {
-  if (!user || !isWhitelisted(user.email)) {
+onAuthStateChanged(auth, async (user) => {
+  if (!user || !(await isWhitelisted(user.email))) {
     // Not signed in, or signed in but not an approved admin -- bounce
     // back to the login page either way.
     window.location.href = "./login.html";

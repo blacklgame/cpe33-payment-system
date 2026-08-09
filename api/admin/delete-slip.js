@@ -6,10 +6,14 @@ const cloudinary = require("cloudinary").v2;
    payment status back to unpaid.
 
    This is the REAL security check for admin actions -- the
-   whitelists in admin.js/dashboard.js are just UI gates and can be
-   bypassed by anyone with devtools, so THIS list is what actually
-   decides who's allowed to delete a slip. Keep it in sync with the
-   two client-side copies.
+   whitelist checks in admin.js/dashboard.js are just UI gates and
+   can be bypassed by anyone with devtools, so THIS check is what
+   actually decides who's allowed to delete a slip.
+
+   The admin email list itself lives in ONE place --
+   public/admin/admin-emails.json -- and this file reads directly
+   from it (same as the client pages, via fetch), so adding or
+   removing an admin only ever means editing that one JSON file.
 
    Requires env vars (set in Vercel -> Project -> Settings ->
    Environment Variables):
@@ -19,9 +23,7 @@ const cloudinary = require("cloudinary").v2;
    (Cloud name is hardcoded below to match your existing setup --
    it's not secret, so no env var needed for it.)
 ------------------------------------------------------------ */
-const ADMIN_EMAILS = [
-  "natthaphatb69@nu.ac.th"
-];
+const ADMIN_EMAILS = require("../../public/admin/admin-emails.json");
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(

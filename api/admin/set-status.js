@@ -3,11 +3,15 @@ const admin = require("firebase-admin");
 /* ------------------------------------------------------------
    Sets a student's manual status: "normal", "termination", or
    "unpaid". This is admin-only and, like delete-slip.js, does the
-   REAL security check server-side -- the whitelists in
+   REAL security check server-side -- the whitelist checks in
    admin.js/dashboard.js are just UI gates and can be bypassed by
-   anyone with devtools, so THIS list is what actually decides who
-   can change a student's status. Keep it in sync with the other
-   three copies (admin.js, dashboard.js, delete-slip.js).
+   anyone with devtools, so THIS check is what actually decides who
+   can change a student's status.
+
+   The admin email list itself lives in ONE place --
+   public/admin/admin-emails.json -- and this file reads directly
+   from it, so adding or removing an admin only ever means editing
+   that one JSON file.
 
    This can't be left as a plain client-side Firestore write (like
    the student upload flow is) because firestore.rules allows any
@@ -21,9 +25,7 @@ const admin = require("firebase-admin");
    Project -> Settings -> Environment Variables):
    - FIREBASE_SERVICE_ACCOUNT_BASE64
 ------------------------------------------------------------ */
-const ADMIN_EMAILS = [
-  "natthaphatb69@nu.ac.th"
-];
+const ADMIN_EMAILS = require("../../public/admin/admin-emails.json");
 
 const VALID_STATUSES = ["normal", "termination", "unpaid"];
 

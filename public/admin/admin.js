@@ -10,7 +10,8 @@
    Add every admin's exact @nu.ac.th email below.
 ------------------------------------------------------------ */
 const ADMIN_EMAILS = [
-  "natthaphatb69@nu.ac.th"
+  "natthaphatb69@nu.ac.th",
+  "saranphatk69@nu.ac.th"
 ];
 
 import {
