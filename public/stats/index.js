@@ -75,7 +75,7 @@ if (!raw) {
       detailStudentStatus.textContent = meta.label;
 
       const slipUrl = payment ? payment.slipUrl : null;
-      if (slipUrl) {
+      if (slipUrl && slipUrl.startsWith("https://")) {
         slipLink.href = slipUrl;
         slipLink.classList.add("show");
       }

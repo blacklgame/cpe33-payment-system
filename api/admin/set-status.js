@@ -76,6 +76,15 @@ module.exports = async function handler(request, response) {
     }
 
     const db = admin.firestore();
+
+    // Verify student exists in the roster
+    const userRef = db.collection("users").doc(nuid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      response.status(404).json({ error: "Student ID does not exist in the roster" });
+      return;
+    }
+
     const paymentRef = db.collection("payments").doc(nuid);
 
     await paymentRef.set(

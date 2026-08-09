@@ -288,7 +288,7 @@ function buildRow({ index, nuid, name, email, paid, studentStatus, slipUrl, slip
   const actions = document.createElement("div");
   actions.className = "card-actions";
 
-  if (slipUrl) {
+  if (slipUrl && slipUrl.startsWith("https://")) {
     const viewLink = document.createElement("a");
     viewLink.href = slipUrl;
     viewLink.target = "_blank";

@@ -19,7 +19,37 @@ service cloud.firestore {
     // owns that Nu ID, since this app has no password login.
     match /payments/{nuid} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow delete: if false; // Only admins can delete, via Admin SDK
+
+      allow create: if request.auth != null
+        && exists(/databases/$(database)/documents/users/$(nuid))
+        && request.resource.data.keys().hasOnly(['paid', 'fileName', 'slipUrl', 'slipPublicId', 'uploadedAt'])
+        && request.resource.data.paid == true
+        && request.resource.data.fileName is string
+        && request.resource.data.slipUrl is string
+        && request.resource.data.slipUrl.matches('^https://res\\.cloudinary\\.com/egcc6hml/image/upload/.+')
+        && request.resource.data.slipPublicId is string
+        && request.resource.data.slipPublicId.matches('^slips/' + nuid + '/.+')
+        && request.resource.data.uploadedAt == request.time;
+
+      allow update: if request.auth != null
+        && exists(/databases/$(database)/documents/users/$(nuid))
+        && resource.data.get('studentStatus', 'unpaid') != 'termination'
+        && request.resource.data.keys().hasOnly(['paid', 'fileName', 'slipUrl', 'slipPublicId', 'uploadedAt', 'studentStatus', 'statusSetBy', 'statusSetAt', 'rejectedBy', 'rejectedAt'])
+        // Admin fields must not be modified by the client
+        && request.resource.data.get('studentStatus', null) == resource.data.get('studentStatus', null)
+        && request.resource.data.get('statusSetBy', null) == resource.data.get('statusSetBy', null)
+        && request.resource.data.get('statusSetAt', null) == resource.data.get('statusSetAt', null)
+        && request.resource.data.get('rejectedBy', null) == resource.data.get('rejectedBy', null)
+        && request.resource.data.get('rejectedAt', null) == resource.data.get('rejectedAt', null)
+        // Check student fields if they are updated
+        && request.resource.data.paid == true
+        && request.resource.data.fileName is string
+        && request.resource.data.slipUrl is string
+        && request.resource.data.slipUrl.matches('^https://res\\.cloudinary\\.com/egcc6hml/image/upload/.+')
+        && request.resource.data.slipPublicId is string
+        && request.resource.data.slipPublicId.matches('^slips/' + nuid + '/.+')
+        && request.resource.data.uploadedAt == request.time;
     }
   }
 }
