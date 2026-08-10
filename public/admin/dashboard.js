@@ -54,41 +54,13 @@ let showPendingOnly = false;
 // should NOT be treated the same way -- see the caller below for why
 // collapsing these together was causing admins to get kicked to the
 // login page for reasons that had nothing to do with their login.
-async function isAdminOnServer(user) {
-  try {
-    const idToken = await user.getIdToken();
-    const res = await fetch("/api/admin/check-admin", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`
-      }
-    });
-    if (res.status === 401 || res.status === 403) return "not-admin";
-    if (!res.ok) return "error";
-    const body = await res.json();
-    return body.isAdmin === true ? "admin" : "not-admin";
-  } catch {
-    return "error";
-  }
-}
-
+// Checks whether the currently signed-in user is an approved admin.
+// Note: We no longer call a separate check-admin endpoint on every
+// load. Instead, we call /api/admin/list-data directly. The server
+// checks the email whitelist in list-data. If it returns 401 or 403,
+// we redirect the user to login. This combines data fetching and
+// authorization into a single, reliable step.
 let currentAdminUser = null;
-// Set once we've successfully shown the dashboard to a confirmed
-// admin in this page load. Used below to tell "never logged in" (bounce
-// immediately) apart from "was logged in a second ago, now Firebase
-// says null" (worth a brief second look before trusting it).
-//
-// This alone isn't enough, though: it's just an in-memory variable, so
-// it resets to false on every fresh page load. If the tab was swapped
-// away from for a long time, mobile browsers commonly discard/reload
-// the tab entirely to save memory -- that's a fresh page load, not a
-// "moments ago" case, so this flag can't help there even though the
-// admin never actually logged out. ADMIN_SEEN_KEY (below) is the fix
-// for that: it survives a full reload, so we can still recognize
-// "this device had a confirmed admin session recently" and give the
-// same grace period, instead of bouncing to login on the very first
-// (possibly spurious) null.
 let everConfirmedAdmin = false;
 
 const ADMIN_SEEN_KEY = "cpe33_admin_seen";
@@ -97,8 +69,7 @@ function markAdminSeen() {
   try {
     localStorage.setItem(ADMIN_SEEN_KEY, "1");
   } catch {
-    // Storage unavailable (private browsing etc) -- fine, just means
-    // this device won't get the reload-grace-period benefit.
+    // Storage unavailable
   }
 }
 
@@ -126,88 +97,37 @@ function goToLogin() {
 }
 
 // Waits for a spurious onAuthStateChanged(null) to resolve itself.
-// Recovering from a long-backgrounded/discarded tab can mean waiting
-// on BOTH a local Firebase session restore AND a real network
-// reconnect, so a single short wait isn't always enough -- this backs
-// off over a few checks (~4.8s total) before concluding it's a real
-// sign-out.
 async function waitForRealSignOut() {
   const delaysMs = [800, 1500, 2500];
   for (const ms of delaysMs) {
     await new Promise((resolve) => setTimeout(resolve, ms));
-    if (auth.currentUser) return false; // recovered -- was spurious
+    if (auth.currentUser) return false; // recovered
   }
   return true;
 }
 
 async function handleAuthState(user) {
   if (user) {
-    // Always capture the latest user object so getIdToken() in
-    // loadDashboard() always has a fresh reference (Firebase replaces
-    // the object on silent token refreshes).
+    // Always capture the latest user object
     currentAdminUser = user;
 
     // If this admin is already confirmed in this session, don't
-    // re-run the whitelist check. A silent token refresh fires
-    // onAuthStateChanged(user) again with the same identity -- re-
-    // checking isAdminOnServer every time means an extra fetch to a
-    // cold Vercel function, and if that function hiccups it would call
-    // goToLogin() mid-action for no real reason. Once confirmed,
-    // trust Firebase's own session management.
+    // trigger a full dashboard reload on silent token updates.
     if (everConfirmedAdmin) return;
 
-    // First time we see a signed-in user: verify with the server.
-    const status = await isAdminOnServer(user);
-    if (status === "not-admin") {
-      goToLogin();
-      return;
-    }
-    if (status === "error") {
-      // Couldn't confirm either way (network blip, cold start, etc).
-      // Retry once before giving up, instead of immediately bouncing a
-      // real admin out over a transient failure.
-      const retryStatus = await isAdminOnServer(user);
-      if (retryStatus !== "admin") {
-        loadingText.textContent = "ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
-        return;
-      }
-    }
-
-    everConfirmedAdmin = true;
-    markAdminSeen();
     welcomeMsg.textContent = `Welcome ${user.email}`;
-    // Only reveal the page content after we've confirmed this is a real admin.
-    mainContent.style.display = "flex";
     loadDashboard();
     return;
   }
 
   // --- user is null ---
-  // Give the same benefit of the doubt to "this device had a
-  // confirmed admin recently, possibly in an earlier page load"
-  // (wasAdminSeenBefore) as to "confirmed a moment ago in this same
-  // page load" (everConfirmedAdmin). Only a device that has never
-  // been confirmed as admin at all gets bounced immediately.
   if (!everConfirmedAdmin && !wasAdminSeenBefore()) {
-    // Normal case: nobody's signed in yet.
     goToLogin();
     return;
   }
 
-  // Real sign-outs (the logout link, a revoked token) are legitimate
-  // and should still bounce to login -- but a spurious null (Safari's
-  // IndexedDB hiccup, or a slow session restore / network reconnect
-  // after this tab was backgrounded or discarded for a while) can
-  // misreport this for a session that's actually still fine.
-  //
-  // NOTE: on a cold page load Firebase always fires null first, then
-  // the restored user. waitForRealSignOut polls auth.currentUser, which
-  // Firebase sets before firing the user event, so the recovery is
-  // visible here without needing to block the user-event handler.
   const reallySignedOut = await waitForRealSignOut();
   if (!reallySignedOut) {
-    // Recovered -- the null was spurious. Nothing to do; the next
-    // real onAuthStateChanged/getIdToken call will keep working.
     return;
   }
   goToLogin();
@@ -237,9 +157,19 @@ async function loadDashboard() {
       }
     });
 
+    if (res.status === 401 || res.status === 403) {
+      goToLogin();
+      return;
+    }
+
     if (!res.ok) {
       throw new Error("Failed to load dashboard data");
     }
+
+    // Now that the data loaded successfully, we confirm they are an admin
+    everConfirmedAdmin = true;
+    markAdminSeen();
+    mainContent.style.display = "flex";
 
     const { users, payments } = await res.json();
 

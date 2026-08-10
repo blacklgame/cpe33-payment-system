@@ -43,7 +43,7 @@ Vercel Serverless Functions (Node.js, /api)
 
 1. **Login** — Admin goes to `/admin/login.html` and signs in with Google (`signInWithPopup`). After a successful sign-in the browser is redirected to the dashboard.
 
-2. **Dashboard gate** — On every dashboard load, `dashboard.js` calls `POST /api/admin/check-admin` with the admin's Firebase ID token. The server verifies the token and checks the email against the admin whitelist (`ADMIN_EMAILS` env var). If the check fails the page redirects back to login. If it passes, the full roster is fetched from `POST /api/admin/list-data`.
+2. **Dashboard gate** — On every dashboard load, `dashboard.js` calls `POST /api/admin/list-data` with the admin's Firebase ID token. The server verifies the token and checks the email against the admin whitelist (`ADMIN_EMAILS` env var). If this check fails (returns 401/403), the page redirects the user back to the login page. If it succeeds, the dashboard renders the student list. This consolidates data fetching and authorization into a single, reliable request.
 
 3. **Approve slip** — Admin clicks "อนุมัติ (Approve)".  
    `POST /api/admin/approve-slip` verifies the token, re-checks the whitelist, then sets `paid: true`, `reviewStatus: "approved"` in Firestore. This is the **only place in the entire codebase that can write `paid: true`**.
@@ -62,7 +62,7 @@ Vercel Serverless Functions (Node.js, /api)
 | Fabricated Cloudinary URL submitted as a real slip | `submit-slip.js` calls the Cloudinary Admin API server-side to verify the asset exists and the URL matches before writing |
 | Unsigned Cloudinary upload under another student's path | `sign-upload.js` requires a token with `uid == nuid`; the server, not the browser, chooses the `public_id`; `overwrite:false` is signed into the ticket |
 | Admin whitelist bypass via client-side check | Every admin API endpoint independently verifies the Firebase ID token + whitelist server-side; the dashboard's client-side check is a UX gate only |
-| Admin session lost on token refresh / mid-action auth event | `dashboard.js` uses an `authHandlerRunning` mutex so concurrent `onAuthStateChanged` calls (e.g. mid-action token refresh) don't race and redirect to login |
+| Admin session lost on token refresh / mid-action auth event | `dashboard.js` utilizes server-side list-data verification with local session caching so token refreshes never trigger redundant network verifications that could cause logout loops |
 
 ---
 
