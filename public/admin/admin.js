@@ -75,7 +75,7 @@ function describeError(err) {
     case "auth/network-request-failed":
       return "การเชื่อมต่อขัดข้อง กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่";
     case "auth/operation-not-supported-in-this-environment":
-      return "เบราว์เซอร์นี้ไม่รองรับการล็อกอิน Google (เช่น เปิดจากแอป LINE/Facebook) กรุณาเปิดลิงก์นี้ใน Safari หรือ Chrome โดยตรง";
+      return "เบราว์เซอร์นี้ไม่รองรับการล็อกอิน Google (เช่น เปิดจากแอป LINE/Facebook/Chrome บน iOS) กรุณาเปิดลิงก์นี้ใน Safari หรือเบราว์เซอร์บน PC โดยตรง";
     default:
       return "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
   }

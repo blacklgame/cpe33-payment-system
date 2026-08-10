@@ -10,7 +10,7 @@
         { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=()" },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+          "value": "default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.cloudinary.com; frame-src 'self' https://cpe33-79979.firebaseapp.com https://cpe33-79979.web.app; object-src 'none'; base-uri 'self'; form-action 'self'"
         }
       ]
     }
