@@ -13,8 +13,7 @@ const admin = require("firebase-admin");
    in Vercel -> Project -> Settings -> Environment Variables):
    - FIREBASE_SERVICE_ACCOUNT_BASE64
 ------------------------------------------------------------ */
-const { loadAdminEmails } = require("../_lib/admins");
-const ADMIN_EMAILS = loadAdminEmails(); // already lowercased
+const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { isValidNuid } = require("../_lib/validate");
 
@@ -51,7 +50,7 @@ module.exports = async function handler(request, response) {
     const decoded = await admin.auth().verifyIdToken(idToken);
     const email = (decoded.email || "").toLowerCase();
 
-    if (!decoded.email_verified || !ADMIN_EMAILS.includes(email)) {
+    if (!decoded.email_verified || !(await checkIsAdmin(email))) {
       response.status(403).json({ error: "Not an approved admin" });
       return;
     }

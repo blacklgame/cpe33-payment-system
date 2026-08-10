@@ -16,6 +16,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Whitelist of admin emails.
+    // Locked down completely from the client -- only read/written via Admin SDK.
+    match /admins/{email} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+
     // Payment status + slip metadata, keyed by Nu ID.
     // Previously `allow read: if true` -- same problem as above, but
     // worse: this collection also holds each student's uploaded slip

@@ -1,42 +1,80 @@
 /* ------------------------------------------------------------
-   Loads the admin email whitelist.
+   Loads the admin email whitelist and checks if a given email
+   is an authorized admin.
 
-   Preferred source: the ADMIN_EMAILS env var (comma-separated,
-   e.g. "a@nu.ac.th,b@nu.ac.th"), set in Vercel -> Project ->
-   Settings -> Environment Variables. This keeps the actual list of
-   admins' real names/emails out of the git repo entirely -- config/
-   admin-emails.json used to be committed to source control, which
-   is fine for *access control* (it's never served to the browser,
-   the Admin SDK-only endpoints already re-check server-side) but
-   does mean anyone with read access to the repo (e.g. a public
-   GitHub repo, or any collaborator added later) could read the
-   admins' personal @nu.ac.th addresses straight out of git history,
-   forever, even after the file is deleted or edited.
+   Preferred source: Firestore "admins" collection, where the document
+   ID is the lowercased email address. If the document exists and
+   does not have enabled: false, the user is authorized. This allows
+   adding/removing admins instantly without changing environment
+   variables or redeploying code.
 
-   Falls back to config/admin-emails.json if ADMIN_EMAILS isn't set,
+   Fallback 1: ADMIN_EMAILS env var (comma-separated, e.g. "a@nu.ac.th,b@nu.ac.th"),
+   set in Vercel -> Project -> Settings -> Environment Variables.
+
+   Fallback 2: config/admin-emails.json if ADMIN_EMAILS isn't set,
    so local dev / a fresh clone still works without extra setup.
-   config/admin-emails.json is now just a template (see the .example
-   file next to it) -- keep your real list in the env var instead,
-   and don't commit a filled-in version of the JSON file.
 ------------------------------------------------------------ */
+const admin = require("firebase-admin");
 const path = require("path");
 
-function loadAdminEmails() {
-  const fromEnv = process.env.ADMIN_EMAILS;
-  if (fromEnv && fromEnv.trim().length > 0) {
-    return fromEnv
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean);
-  }
-
+// Ensure firebase-admin is initialized if credentials are available
+if (!admin.apps.length) {
   try {
-    // eslint-disable-next-line global-require
-    const fallback = require(path.join(__dirname, "../../config/admin-emails.json"));
-    return fallback.map((e) => e.toLowerCase());
-  } catch {
-    return [];
+    const saJson = Buffer.from(
+      process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || "",
+      "base64"
+    ).toString("utf8");
+
+    if (saJson) {
+      admin.initializeApp({
+        credential: admin.credential.cert(JSON.parse(saJson))
+      });
+    }
+  } catch (err) {
+    console.warn("Could not initialize firebase-admin in admins.js:", err.message);
   }
 }
 
-module.exports = { loadAdminEmails };
+async function checkIsAdmin(email) {
+  if (!email || typeof email !== "string") return false;
+  const lowerEmail = email.toLowerCase().trim();
+
+  // 1. Try checking Firestore database
+  if (admin.apps.length) {
+    try {
+      const db = admin.firestore();
+      const adminDoc = await db.collection("admins").doc(lowerEmail).get();
+      if (adminDoc.exists) {
+        const data = adminDoc.data();
+        if (data && data.enabled === false) {
+          return false;
+        }
+        return true;
+      }
+    } catch (err) {
+      console.warn("Failed to check admin status in Firestore, falling back:", err.message);
+    }
+  }
+
+  // 2. Fallback to ADMIN_EMAILS env var
+  const fromEnv = process.env.ADMIN_EMAILS;
+  if (fromEnv && fromEnv.trim().length > 0) {
+    const envEmails = fromEnv
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    return envEmails.includes(lowerEmail);
+  }
+
+  // 3. Fallback to config/admin-emails.json
+  try {
+    // eslint-disable-next-line global-require
+    const fallback = require(path.join(__dirname, "../../config/admin-emails.json"));
+    const fallbackEmails = fallback.map((e) => e.toLowerCase());
+    return fallbackEmails.includes(lowerEmail);
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { checkIsAdmin };
