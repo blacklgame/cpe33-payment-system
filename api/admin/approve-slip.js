@@ -13,7 +13,7 @@ const admin = require("firebase-admin");
    in Vercel -> Project -> Settings -> Environment Variables):
    - FIREBASE_SERVICE_ACCOUNT_BASE64
 ------------------------------------------------------------ */
-const ADMIN_EMAILS = require("./_admin-emails");
+const ADMIN_EMAILS = require("../../config/admin-emails.json");
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
