@@ -27,6 +27,7 @@ const admin = require("firebase-admin");
 const { loadAdminEmails } = require("../_lib/admins");
 const ADMIN_EMAILS = loadAdminEmails(); // already lowercased
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
+const { isValidNuid } = require("../_lib/validate");
 
 const VALID_STATUSES = ["normal", "termination", "unpaid"];
 
@@ -74,6 +75,10 @@ module.exports = async function handler(request, response) {
     const { nuid, status } = request.body || {};
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
+      return;
+    }
+    if (!isValidNuid(nuid)) {
+      response.status(400).json({ error: "Invalid Nu ID format" });
       return;
     }
     if (!VALID_STATUSES.includes(status)) {

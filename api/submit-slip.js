@@ -1,5 +1,6 @@
 const admin = require("firebase-admin");
 const { rateLimit, clientIp } = require("./_lib/rate-limit");
+const { isValidNuid } = require("./_lib/validate");
 
 /* ------------------------------------------------------------
    Records a submitted payment slip after it's already been
@@ -84,6 +85,10 @@ module.exports = async function handler(request, response) {
       response.status(400).json({ error: "Missing nuid" });
       return;
     }
+    if (!isValidNuid(nuid)) {
+      response.status(400).json({ error: "Invalid Nu ID format" });
+      return;
+    }
 
     if (decoded.uid !== nuid) {
       response.status(403).json({ error: "Not authorized for this Nu ID" });
@@ -91,6 +96,15 @@ module.exports = async function handler(request, response) {
     }
     if (!fileName || typeof fileName !== "string") {
       response.status(400).json({ error: "Missing fileName" });
+      return;
+    }
+    // Cap fileName length -- it's stored in Firestore and rendered
+    // as-is (not currently a display target in the dashboard, but no
+    // reason to let an arbitrarily long string through just because
+    // nothing reads it today). 300 chars is generous for any real
+    // filename.
+    if (fileName.length > 300) {
+      response.status(400).json({ error: "fileName too long" });
       return;
     }
     if (!slipUrl || typeof slipUrl !== "string" || !CLOUDINARY_URL_RE.test(slipUrl)) {
@@ -152,6 +166,15 @@ module.exports = async function handler(request, response) {
 
     // paid is ALWAYS false here -- there is no code path in this
     // file that ever writes paid:true. Only approve-slip.js can.
+    //
+    // Explicitly clear any approvedBy/approvedAt/rejectedBy/rejectedAt
+    // left over from a previous cycle (approve -> delete/reject ->
+    // resubmit). With merge:true, fields not mentioned here are left
+    // untouched -- so without this, a fresh "pending" submission could
+    // still carry a stale approvedAt from months ago, which is
+    // confusing at best (looks approved-then-pending at once) and
+    // actively misleading if anything ever reads approvedAt as "last
+    // time this nuid was approved" without also checking reviewStatus.
     await paymentRef.set(
       {
         paid: false,
@@ -159,7 +182,11 @@ module.exports = async function handler(request, response) {
         fileName,
         slipUrl,
         slipPublicId,
-        submittedAt: admin.firestore.FieldValue.serverTimestamp()
+        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+        approvedBy: admin.firestore.FieldValue.delete(),
+        approvedAt: admin.firestore.FieldValue.delete(),
+        rejectedBy: admin.firestore.FieldValue.delete(),
+        rejectedAt: admin.firestore.FieldValue.delete()
       },
       { merge: true }
     );

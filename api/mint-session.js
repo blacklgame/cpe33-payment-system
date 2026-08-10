@@ -1,5 +1,6 @@
 const admin = require("firebase-admin");
 const { rateLimit, clientIp } = require("./_lib/rate-limit");
+const { isValidNuid } = require("./_lib/validate");
 
 /* ------------------------------------------------------------
    Mints a Firebase Auth custom token with uid == nuid, after
@@ -56,6 +57,12 @@ module.exports = async function handler(request, response) {
     const { nuid } = request.body || {};
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
+      return;
+    }
+    // Reject anything that isn't a real 8-digit Nu ID before it ever
+    // reaches Firestore -- see api/_lib/validate.js for why.
+    if (!isValidNuid(nuid)) {
+      response.status(400).json({ error: "Invalid Nu ID format" });
       return;
     }
 

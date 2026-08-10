@@ -16,6 +16,7 @@ const admin = require("firebase-admin");
 const { loadAdminEmails } = require("../_lib/admins");
 const ADMIN_EMAILS = loadAdminEmails(); // already lowercased
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
+const { isValidNuid } = require("../_lib/validate");
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
@@ -60,12 +61,24 @@ module.exports = async function handler(request, response) {
       response.status(400).json({ error: "Missing nuid" });
       return;
     }
+    if (!isValidNuid(nuid)) {
+      response.status(400).json({ error: "Invalid Nu ID format" });
+      return;
+    }
 
     const db = admin.firestore();
     const paymentRef = db.collection("payments").doc(nuid);
     const paymentSnap = await paymentRef.get();
 
-    if (!paymentSnap.exists || !paymentSnap.data().slipUrl) {
+    // Require reviewStatus === "pending", not just "a slipUrl exists".
+    // Previously this only checked slipUrl was present, so an already
+    // -approved slip (still has slipUrl) or a slip an admin had just
+    // rejected in the same instant could both be re-approved by a
+    // stale/duplicate click -- e.g. two admin tabs open, or a retried
+    // request -- silently re-running approvedBy/approvedAt with no
+    // error. Pinning this to reviewStatus makes approve a one-way,
+    // one-shot transition from "pending" only.
+    if (!paymentSnap.exists || paymentSnap.data().reviewStatus !== "pending") {
       response.status(404).json({ error: "No pending slip for this nuid" });
       return;
     }

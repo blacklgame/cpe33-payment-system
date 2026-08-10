@@ -26,6 +26,7 @@ const cloudinary = require("cloudinary").v2;
 const { loadAdminEmails } = require("../_lib/admins");
 const ADMIN_EMAILS = loadAdminEmails(); // already lowercased
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
+const { isValidNuid } = require("../_lib/validate");
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
@@ -77,6 +78,10 @@ module.exports = async function handler(request, response) {
     const { nuid } = request.body || {};
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
+      return;
+    }
+    if (!isValidNuid(nuid)) {
+      response.status(400).json({ error: "Invalid Nu ID format" });
       return;
     }
 

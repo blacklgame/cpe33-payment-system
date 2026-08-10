@@ -1,6 +1,7 @@
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { rateLimit, clientIp } = require("./_lib/rate-limit");
+const { isValidNuid } = require("./_lib/validate");
 
 /* ------------------------------------------------------------
    Issues a signed-upload ticket for a payment slip.
@@ -76,6 +77,10 @@ module.exports = async function handler(request, response) {
     const { nuid } = request.body || {};
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
+      return;
+    }
+    if (!isValidNuid(nuid)) {
+      response.status(400).json({ error: "Invalid Nu ID format" });
       return;
     }
 
