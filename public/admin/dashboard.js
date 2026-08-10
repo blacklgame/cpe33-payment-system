@@ -92,6 +92,7 @@ function wasAdminSeenBefore() {
 const mainContent = document.getElementById("mainContent");
 
 function goToLogin() {
+  stopAutoRefresh();
   clearAdminSeen();
   window.location.href = "./login.html";
 }
@@ -137,10 +138,57 @@ onAuthStateChanged(auth, handleAuthState);
 
 logoutLink.addEventListener("click", async (e) => {
   e.preventDefault();
+  stopAutoRefresh();
   clearAdminSeen();
   await signOut(auth);
   window.location.href = "./login.html";
 });
+
+// Turns the raw {users, payments} response into the flat, sorted
+// array the rest of the file renders from. Pulled out on its own so
+// both the initial load and the silent background refresh (below)
+// build rows exactly the same way -- one place to keep in sync.
+function mapUsersAndPayments(users, payments) {
+  const paymentsByNuid = {};
+  payments.forEach((p) => {
+    paymentsByNuid[p.id] = p;
+  });
+
+  // Sort by Nu ID so the list is stable and easy to scan (1-91 in order).
+  const userDocs = users.slice().sort((a, b) => a.id.localeCompare(b.id));
+
+  return userDocs.map((userData, index) => {
+    const nuid = userData.id;
+    const payment = paymentsByNuid[nuid] || null;
+    const paid = !!(payment && payment.paid);
+
+    // studentStatus is a manual admin override. Older records that
+    // predate this feature won't have it yet, so fall back to the
+    // paid flag: paid -> "normal", not paid -> "unpaid". Once an
+    // admin picks a status from the dropdown it's stored explicitly
+    // and takes over from here on, including "termination" which
+    // paid/unpaid alone can't represent.
+    const studentStatus = payment && payment.studentStatus
+      ? payment.studentStatus
+      : (paid ? "normal" : "unpaid");
+
+    return {
+      index: index + 1,
+      nuid,
+      name: userData.name || "-",
+      email: userData.email || "-",
+      paid,
+      // A slip that's been submitted (via api/submit-slip.js) but
+      // not yet approved by an admin (via api/admin/approve-slip.js)
+      // -- see firestore.rules for why paid can no longer flip to
+      // true on its own just because a slip was uploaded.
+      pendingReview: !!(payment && payment.slipUrl && !paid),
+      studentStatus,
+      slipUrl: payment ? payment.slipUrl : null,
+      slipPublicId: payment ? payment.slipPublicId : null
+    };
+  });
+}
 
 async function loadDashboard() {
   loadingText.textContent = "กำลังโหลดรายชื่อ...";
@@ -173,52 +221,13 @@ async function loadDashboard() {
 
     const { users, payments } = await res.json();
 
-    const paymentsByNuid = {};
-    payments.forEach((p) => {
-      paymentsByNuid[p.id] = p;
-    });
-
-    // Sort by Nu ID so the list is stable and easy to scan (1-91 in order).
-    const userDocs = users.slice().sort((a, b) => a.id.localeCompare(b.id));
-
-    if (userDocs.length === 0) {
+    if (users.length === 0) {
       loadingText.textContent = "ไม่พบรายชื่อผู้ใช้ (ยังไม่ได้ seed ข้อมูล users)";
       return;
     }
 
     loadingText.textContent = "";
-
-    allUsers = userDocs.map((userData, index) => {
-      const nuid = userData.id;
-      const payment = paymentsByNuid[nuid] || null;
-      const paid = !!(payment && payment.paid);
-
-      // studentStatus is a manual admin override. Older records that
-      // predate this feature won't have it yet, so fall back to the
-      // paid flag: paid -> "normal", not paid -> "unpaid". Once an
-      // admin picks a status from the dropdown it's stored explicitly
-      // and takes over from here on, including "termination" which
-      // paid/unpaid alone can't represent.
-      const studentStatus = payment && payment.studentStatus
-        ? payment.studentStatus
-        : (paid ? "normal" : "unpaid");
-
-      return {
-        index: index + 1,
-        nuid,
-        name: userData.name || "-",
-        email: userData.email || "-",
-        paid,
-        // A slip that's been submitted (via api/submit-slip.js) but
-        // not yet approved by an admin (via api/admin/approve-slip.js)
-        // -- see firestore.rules for why paid can no longer flip to
-        // true on its own just because a slip was uploaded.
-        pendingReview: !!(payment && payment.slipUrl && !paid),
-        studentStatus,
-        slipUrl: payment ? payment.slipUrl : null,
-        slipPublicId: payment ? payment.slipPublicId : null
-      };
-    });
+    allUsers = mapUsersAndPayments(users, payments);
 
     toolbar.style.display = "flex";
     renderPagination();
@@ -226,9 +235,89 @@ async function loadDashboard() {
     const pageCount = Math.max(1, Math.ceil(allUsers.length / PAGE_SIZE));
     if (currentPage > pageCount) currentPage = pageCount;
     renderCurrentView();
+
+    // Data's in and rendered -- start (or keep) the background poll
+    // that keeps it fresh from here on, so admins never need to hit
+    // refresh again (see startAutoRefresh below).
+    startAutoRefresh();
   } catch (err) {
     console.error("Failed to load dashboard:", err);
     loadingText.textContent = "โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+  }
+}
+
+/* ------------------------------------------------------------
+   Background auto-refresh: polls list-data every few seconds and
+   quietly re-renders whatever view is currently on screen (same
+   page number / search / pending filter), so a newly-submitted
+   slip shows up in "รอตรวจสอบ" without the admin ever needing to
+   reload the page. Reloading is what used to cause the whole
+   re-login dance, so removing the need for it fixes both problems
+   at once.
+
+   Deliberately silent: a failed poll (flaky network, brief 401
+   while a token refreshes, etc.) just gets skipped and retried on
+   the next tick -- it must never redirect to login or show an
+   error, since a background tick failing is not the same thing as
+   the admin actually being signed out.
+
+   Paused while an admin action (status change / approve / delete)
+   is in flight, so a poll can't land mid-action and re-render the
+   row out from under a click.
+------------------------------------------------------------ */
+const AUTO_REFRESH_MS = 12000;
+let autoRefreshTimer = null;
+let actionInFlight = false;
+
+function startAutoRefresh() {
+  if (autoRefreshTimer) return; // already running
+  autoRefreshTimer = setInterval(refreshDashboardSilently, AUTO_REFRESH_MS);
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+}
+
+async function refreshDashboardSilently() {
+  if (!everConfirmedAdmin || !currentAdminUser || actionInFlight) return;
+
+  try {
+    const idToken = await currentAdminUser.getIdToken();
+    const res = await fetch("/api/admin/list-data", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`
+      }
+    });
+
+    // Don't bounce to login from a background tick -- a transient
+    // token/network blip here doesn't mean the admin actually got
+    // signed out. Just skip this cycle and try again next tick.
+    if (!res.ok) return;
+
+    const { users, payments } = await res.json();
+    if (users.length === 0) return;
+
+    const previousCount = allUsers.length;
+    allUsers = mapUsersAndPayments(users, payments);
+
+    // Only rebuild the page buttons if the roster size actually
+    // changed (adding/removing a page) -- otherwise leave them alone
+    // so the admin's current page selection doesn't visibly flicker.
+    if (allUsers.length !== previousCount) {
+      renderPagination();
+      const pageCount = Math.max(1, Math.ceil(allUsers.length / PAGE_SIZE));
+      if (currentPage > pageCount) currentPage = pageCount;
+    }
+
+    renderCurrentView();
+  } catch (err) {
+    // Silent by design -- see comment above.
+    console.warn("Background refresh skipped:", err);
   }
 }
 
@@ -271,11 +360,24 @@ function renderPagination() {
 }
 
 function renderCurrentView() {
+  updatePendingBadge();
   if (currentSearch || showPendingOnly) {
     renderFilteredResults();
   } else {
     renderPageRows();
   }
+}
+
+// Keeps a live count on the pending-filter button itself (e.g.
+// "รอตรวจสอบ (3)") so a newly-submitted slip is visible at a glance
+// the moment the next auto-refresh picks it up -- no need to even
+// click into the filter to notice something showed up.
+const PENDING_LABEL_BASE = "รอตรวจสอบ (Pending approval)";
+function updatePendingBadge() {
+  const pendingCount = allUsers.filter((u) => u.pendingReview).length;
+  pendingFilterToggle.textContent = pendingCount > 0
+    ? `${PENDING_LABEL_BASE} · ${pendingCount}`
+    : PENDING_LABEL_BASE;
 }
 
 function renderPageRows() {
@@ -455,6 +557,7 @@ function applyCardStatusClass(card, studentStatus) {
 async function handleStatusChange(nuid, newStatus, selectEl, card) {
   const previousValue = selectEl.dataset.previousValue;
   selectEl.disabled = true;
+  actionInFlight = true;
 
   try {
     const idToken = await currentAdminUser.getIdToken();
@@ -487,6 +590,7 @@ async function handleStatusChange(nuid, newStatus, selectEl, card) {
     selectEl.value = previousValue;
   } finally {
     selectEl.disabled = false;
+    actionInFlight = false;
   }
 }
 
@@ -498,6 +602,7 @@ async function handleApprove(nuid, triggerEl) {
 
   const originalText = triggerEl.textContent;
   triggerEl.textContent = "กำลังอนุมัติ...";
+  actionInFlight = true;
 
   try {
     const idToken = await currentAdminUser.getIdToken();
@@ -523,6 +628,8 @@ async function handleApprove(nuid, triggerEl) {
     console.error("Approve failed:", err);
     alert("อนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
     triggerEl.textContent = originalText;
+  } finally {
+    actionInFlight = false;
   }
 }
 
@@ -533,6 +640,7 @@ async function handleDelete(nuid, slipPublicId, triggerEl) {
   if (!confirmed) return;
 
   triggerEl.textContent = "กำลังลบ...";
+  actionInFlight = true;
 
   try {
     const idToken = await currentAdminUser.getIdToken();
@@ -558,5 +666,7 @@ async function handleDelete(nuid, slipPublicId, triggerEl) {
     console.error("Delete failed:", err);
     alert("ลบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
     triggerEl.textContent = "ลบ";
+  } finally {
+    actionInFlight = false;
   }
 }
