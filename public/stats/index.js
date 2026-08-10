@@ -2,7 +2,7 @@
    1) Sync this page to whichever Nu ID logged in (same session
       key the login page + home page use), e.g. "69360303"
 ------------------------------------------------------------ */
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 import { db } from "../firebase.js";
 import { ensureSignedInAsNuid } from "../auth-session.js";
 

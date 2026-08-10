@@ -30,11 +30,29 @@
    trade-off is that some strict in-app browsers/webviews block
    popups outright -- if that happens here, the catch block below
    shows a clear error instead of failing silently.
+
+   iOS Safari specifically: signInWithPopup was unreliable there
+   because, before it can open the popup, the SDK also needs to
+   read/write its local auth-session storage -- and Safari's
+   IndexedDB (the SDK's default storage) has a known intermittent
+   hang/abort bug (firebase/firebase-js-sdk #7888, #8860). Any delay
+   there breaks Safari's "popup must open in direct response to the
+   click" rule and the popup gets silently blocked or closed. Fixed
+   in ../firebase.js by forcing plain localStorage
+   (browserLocalPersistence) instead of IndexedDB for auth storage,
+   so there's nothing left that can hang before the popup opens.
+
+   If a phone browser is a LINE/Facebook/Instagram in-app browser
+   rather than actual Safari, no code change here can fix that --
+   Google blocks Google Sign-In entirely inside those embedded
+   webviews (error: disallowed_useragent) as an anti-phishing
+   measure. The only fix is opening this page in real Safari/Chrome
+   (the in-app browser's own "Open in Safari/Chrome" menu option).
 ------------------------------------------------------------ */
 import {
   GoogleAuthProvider,
   signInWithPopup
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { auth } from "../firebase.js";
 
 const signInBtn = document.querySelector(".btn-google");
@@ -56,6 +74,8 @@ function describeError(err) {
       return "หน้าต่างเข้าสู่ระบบถูกปิดก่อนเสร็จสิ้น กรุณาลองใหม่อีกครั้ง";
     case "auth/network-request-failed":
       return "การเชื่อมต่อขัดข้อง กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่";
+    case "auth/operation-not-supported-in-this-environment":
+      return "เบราว์เซอร์นี้ไม่รองรับการล็อกอิน Google (เช่น เปิดจากแอป LINE/Facebook) กรุณาเปิดลิงก์นี้ใน Safari หรือ Chrome โดยตรง";
     default:
       return "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
   }

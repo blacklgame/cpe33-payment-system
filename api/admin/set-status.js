@@ -24,7 +24,8 @@ const admin = require("firebase-admin");
    Project -> Settings -> Environment Variables):
    - FIREBASE_SERVICE_ACCOUNT_BASE64
 ------------------------------------------------------------ */
-const ADMIN_EMAILS = require("../../config/admin-emails.json");
+const { loadAdminEmails } = require("../_lib/admins");
+const ADMIN_EMAILS = loadAdminEmails(); // already lowercased
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 
 const VALID_STATUSES = ["normal", "termination", "unpaid"];
@@ -65,7 +66,7 @@ module.exports = async function handler(request, response) {
     const decoded = await admin.auth().verifyIdToken(idToken);
     const email = (decoded.email || "").toLowerCase();
 
-    if (!decoded.email_verified || !ADMIN_EMAILS.map((e) => e.toLowerCase()).includes(email)) {
+    if (!decoded.email_verified || !ADMIN_EMAILS.includes(email)) {
       response.status(403).json({ error: "Not an approved admin" });
       return;
     }

@@ -13,7 +13,8 @@ const admin = require("firebase-admin");
    Environment Variables):
    - FIREBASE_SERVICE_ACCOUNT_BASE64
 ------------------------------------------------------------ */
-const ADMIN_EMAILS = require("../../config/admin-emails.json");
+const { loadAdminEmails } = require("../_lib/admins");
+const ADMIN_EMAILS = loadAdminEmails(); // already lowercased
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 
 if (!admin.apps.length) {
@@ -51,7 +52,7 @@ module.exports = async function handler(request, response) {
 
     const isAdmin =
       !!decoded.email_verified &&
-      ADMIN_EMAILS.map((e) => e.toLowerCase()).includes(email);
+      ADMIN_EMAILS.includes(email);
 
     // Always return 200 with a boolean rather than 403, so the client
     // can distinguish "server error" (non-200) from "not an admin"

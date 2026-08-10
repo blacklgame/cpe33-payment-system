@@ -16,3 +16,10 @@ yarn-error.log*
 scripts/roster-data.json
 serviceAccountKey.json
 
+# Real admin emails -- set ADMIN_EMAILS in Vercel's env vars instead
+# (see api/_lib/admins.js). This file is now only a local-dev fallback
+# if you don't want to set the env var on your own machine; don't put
+# real @nu.ac.th admin addresses in a committed file. Commit
+# config/admin-emails.example.json (placeholder values) instead.
+config/admin-emails.json
+

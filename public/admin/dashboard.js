@@ -15,7 +15,7 @@
    reads from it, so adding or removing an admin only ever means
    editing that one JSON file.
 ------------------------------------------------------------ */
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { auth } from "../firebase.js";
 
 const welcomeMsg = document.getElementById("welcomeMsg");
@@ -46,8 +46,15 @@ let showPendingOnly = false;
 // asking the server (which reads admin-emails.json server-side, where
 // it is no longer publicly accessible). Uses the Firebase ID token so
 // the check can't be spoofed from the browser.
+//
+// Returns "admin", "not-admin", or "error" -- kept as three distinct
+// outcomes on purpose. A real "not-admin" (the server verified the
+// token and the email just isn't on the whitelist) should bounce the
+// user out. A network hiccup / cold-start timeout / transient 5xx
+// should NOT be treated the same way -- see the caller below for why
+// collapsing these together was causing admins to get kicked to the
+// login page for reasons that had nothing to do with their login.
 async function isAdminOnServer(user) {
-  if (!user) return false;
   try {
     const idToken = await user.getIdToken();
     const res = await fetch("/api/admin/check-admin", {
@@ -57,31 +64,77 @@ async function isAdminOnServer(user) {
         Authorization: `Bearer ${idToken}`
       }
     });
-    if (!res.ok) return false;
+    if (res.status === 401 || res.status === 403) return "not-admin";
+    if (!res.ok) return "error";
     const body = await res.json();
-    return body.isAdmin === true;
+    return body.isAdmin === true ? "admin" : "not-admin";
   } catch {
-    return false;
+    return "error";
   }
 }
 
 let currentAdminUser = null;
+// Set once we've successfully shown the dashboard to a confirmed
+// admin in this page load. Used below to tell "never logged in" (bounce
+// immediately) apart from "was logged in a second ago, now Firebase
+// says null" (worth a brief second look before trusting it).
+let everConfirmedAdmin = false;
 
 const mainContent = document.getElementById("mainContent");
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user || !(await isAdminOnServer(user))) {
-    // Not signed in, or signed in but not an approved admin -- bounce
-    // back to the login page either way.
-    window.location.href = "./login.html";
+function goToLogin() {
+  window.location.href = "./login.html";
+}
+
+async function handleAuthState(user) {
+  if (!user) {
+    if (!everConfirmedAdmin) {
+      // Normal case: nobody's signed in yet.
+      goToLogin();
+      return;
+    }
+    // We had a confirmed admin session moments ago and Firebase Auth
+    // just reported null. Real sign-outs (the logout link, a revoked
+    // token) are legitimate and should still bounce to login -- but
+    // some browsers (notably Safari, due to an intermittent IndexedDB
+    // bug in the auth SDK's local session storage) can misreport this
+    // for a session that's actually still fine. Give it one grace
+    // check instead of trusting the very first null immediately.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    if (auth.currentUser) {
+      // Recovered -- the null was spurious. Nothing to do; the next
+      // real onAuthStateChanged/getIdToken call will keep working.
+      return;
+    }
+    goToLogin();
     return;
   }
+
+  const status = await isAdminOnServer(user);
+  if (status === "not-admin") {
+    goToLogin();
+    return;
+  }
+  if (status === "error") {
+    // Couldn't confirm either way (network blip, cold start, etc).
+    // Retry once before giving up, instead of immediately bouncing a
+    // real admin out over a transient failure.
+    const retryStatus = await isAdminOnServer(user);
+    if (retryStatus !== "admin") {
+      loadingText.textContent = "ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
+      return;
+    }
+  }
+
+  everConfirmedAdmin = true;
   currentAdminUser = user;
   welcomeMsg.textContent = `Welcome ${user.email}`;
   // Only reveal the page content after we've confirmed this is a real admin.
   mainContent.style.display = "flex";
   loadDashboard();
-});
+}
+
+onAuthStateChanged(auth, handleAuthState);
 
 logoutLink.addEventListener("click", async (e) => {
   e.preventDefault();

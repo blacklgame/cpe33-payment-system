@@ -8,7 +8,7 @@
 import {
   onAuthStateChanged,
   signInWithCustomToken
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { auth } from "./firebase.js";
 
 export async function signInAsNuid(nuid) {
