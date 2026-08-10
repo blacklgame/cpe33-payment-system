@@ -13,19 +13,19 @@ const admin = require("firebase-admin");
    from it, so adding or removing an admin only ever means editing
    that one JSON file.
 
-   This can't be left as a plain client-side Firestore write (like
-   the student upload flow is) because firestore.rules allows any
-   signed-in session -- including an anonymous student session --
-   to write to payments/{nuid}. A status field that can mark someone
-   "terminated" needs to be admin-only, so it's set here using the
-   Admin SDK (which bypasses Firestore rules) after independently
-   verifying the caller is an approved admin.
+   This can't be a plain client-side Firestore write at all --
+   firestore.rules denies every client write to payments/{nuid}
+   unconditionally, student or admin. A status field that can mark
+   someone "terminated" needs to be admin-only, so it's set here
+   using the Admin SDK (which bypasses Firestore rules) after
+   independently verifying the caller is an approved admin.
 
    Requires the same env var as delete-slip.js (set in Vercel ->
    Project -> Settings -> Environment Variables):
    - FIREBASE_SERVICE_ACCOUNT_BASE64
 ------------------------------------------------------------ */
 const ADMIN_EMAILS = require("../../config/admin-emails.json");
+const { rateLimit, clientIp } = require("../_lib/rate-limit");
 
 const VALID_STATUSES = ["normal", "termination", "unpaid"];
 
@@ -47,6 +47,11 @@ module.exports = async function handler(request, response) {
   }
 
   try {
+    if (rateLimit(`set-status:${clientIp(request)}`, { limit: 30, windowMs: 60_000 }).limited) {
+      response.status(429).json({ error: "Too many requests, please slow down" });
+      return;
+    }
+
     const authHeader = request.headers.authorization || "";
     const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
     if (!idToken) {
@@ -99,6 +104,6 @@ module.exports = async function handler(request, response) {
     response.status(200).json({ ok: true });
   } catch (err) {
     console.error("Admin set-status failed:", err);
-    response.status(500).json({ error: err.message });
+    response.status(500).json({ error: "Internal server error" });
   }
 };

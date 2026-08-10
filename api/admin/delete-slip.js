@@ -24,6 +24,7 @@ const cloudinary = require("cloudinary").v2;
    it's not secret, so no env var needed for it.)
 ------------------------------------------------------------ */
 const ADMIN_EMAILS = require("../../config/admin-emails.json");
+const { rateLimit, clientIp } = require("../_lib/rate-limit");
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
@@ -49,6 +50,11 @@ module.exports = async function handler(request, response) {
   }
 
   try {
+    if (rateLimit(`delete-slip:${clientIp(request)}`, { limit: 30, windowMs: 60_000 }).limited) {
+      response.status(429).json({ error: "Too many requests, please slow down" });
+      return;
+    }
+
     const authHeader = request.headers.authorization || "";
     const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
     if (!idToken) {
@@ -115,6 +121,6 @@ module.exports = async function handler(request, response) {
     response.status(200).json({ ok: true });
   } catch (err) {
     console.error("Admin delete-slip failed:", err);
-    response.status(500).json({ error: err.message });
+    response.status(500).json({ error: "Internal server error" });
   }
 };

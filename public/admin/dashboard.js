@@ -15,14 +15,8 @@
    reads from it, so adding or removing an admin only ever means
    editing that one JSON file.
 ------------------------------------------------------------ */
-import {
-  collection,
-  getDocs,
-  doc,
-  getDoc
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { db, auth } from "../firebase.js";
+import { auth } from "../firebase.js";
 
 const welcomeMsg = document.getElementById("welcomeMsg");
 const loadingText = document.getElementById("loadingText");
@@ -101,18 +95,28 @@ async function loadDashboard() {
   rowsContainer.innerHTML = "";
 
   try {
-    const [usersSnap, paymentsSnap] = await Promise.all([
-      getDocs(collection(db, "users")),
-      getDocs(collection(db, "payments"))
-    ]);
+    const idToken = await currentAdminUser.getIdToken();
+    const res = await fetch("/api/admin/list-data", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed to load dashboard data");
+    }
+
+    const { users, payments } = await res.json();
 
     const paymentsByNuid = {};
-    paymentsSnap.forEach((d) => {
-      paymentsByNuid[d.id] = d.data();
+    payments.forEach((p) => {
+      paymentsByNuid[p.id] = p;
     });
 
     // Sort by Nu ID so the list is stable and easy to scan (1-91 in order).
-    const userDocs = usersSnap.docs.sort((a, b) => a.id.localeCompare(b.id));
+    const userDocs = users.slice().sort((a, b) => a.id.localeCompare(b.id));
 
     if (userDocs.length === 0) {
       loadingText.textContent = "ไม่พบรายชื่อผู้ใช้ (ยังไม่ได้ seed ข้อมูล users)";
@@ -121,9 +125,8 @@ async function loadDashboard() {
 
     loadingText.textContent = "";
 
-    allUsers = userDocs.map((userDoc, index) => {
-      const nuid = userDoc.id;
-      const userData = userDoc.data();
+    allUsers = userDocs.map((userData, index) => {
+      const nuid = userData.id;
       const payment = paymentsByNuid[nuid] || null;
       const paid = !!(payment && payment.paid);
 

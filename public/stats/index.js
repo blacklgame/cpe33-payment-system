@@ -4,6 +4,7 @@
 ------------------------------------------------------------ */
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { db } from "../firebase.js";
+import { ensureSignedInAsNuid } from "../auth-session.js";
 
 // Same three states + colors the admin dashboard uses, so a
 // student sees the exact same label/color an admin set for them.
@@ -68,7 +69,8 @@ if (!raw) {
      from the admin dashboard -- when present, that takes over
      from the plain paid/unpaid flag (see dashboard.js).
   ---------------------------------------------------------- */
-  getDoc(doc(db, "payments", user.id))
+  ensureSignedInAsNuid(user.id)
+    .then(() => getDoc(doc(db, "payments", user.id)))
     .then((paymentSnap) => {
       const payment = paymentSnap.exists() ? paymentSnap.data() : null;
       const paid = !!(payment && payment.paid);

@@ -3,37 +3,49 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Roster of students (Nu ID -> name/email/stat).
-    // Readable by the app for login lookups. Not writable from the
-    // client at all -- the roster was loaded once via the Admin SDK
-    // (which bypasses rules entirely), so this can stay locked down.
+    // No client page reads this collection anymore -- the login page
+    // uses the roster bundled into public/user.js, and every server
+    // endpoint that needs the roster (submit-slip.js, mint-session.js,
+    // api/admin/*) uses the Admin SDK, which bypasses these rules
+    // entirely. So this can be fully locked down, both read and
+    // write, from every client session (previously `allow read: if
+    // true` let anyone dump every student's name/email/Nu ID via the
+    // Firestore REST API directly, with no login at all).
     match /users/{nuid} {
-      allow read: if true;
+      allow read: if false;
       allow write: if false;
     }
 
     // Payment status + slip metadata, keyed by Nu ID.
-    // Readable by the app (Stats page). NOT writable from the client
-    // at all, from any session (anonymous or otherwise).
+    // Previously `allow read: if true` -- same problem as above, but
+    // worse: this collection also holds each student's uploaded slip
+    // URL and review status, all publicly dumpable with no login.
     //
-    // This used to allow a signed-in client to create/update this
-    // doc directly as long as the data "looked right" (regex checks
-    // on slipUrl/slipPublicId) -- but a regex only checks the SHAPE
-    // of a string, not whether an admin ever reviewed the image. An
-    // unsigned Cloudinary upload lets the client choose its own
-    // public_id, so anyone could upload an unrelated picture and get
-    // back a slipUrl that satisfied every check here, then write
-    // paid:true straight into Firestore themselves. That's a
-    // complete bypass of payment verification.
+    // Now owner-only: a student can read payments/{nuid} only once
+    // their browser is signed in with a Firebase Auth session whose
+    // uid == nuid. That session comes from /api/mint-session (see
+    // that file, and public/auth-session.js) -- it confirms the Nu ID
+    // is on the roster, but does NOT verify the person typing it is
+    // really that student. It closes "readable with zero session at
+    // all" cheaply; it does not by itself stop someone who knows a
+    // classmate's Nu ID from reading that classmate's status. Real
+    // identity verification (Google SSO restricted to nu.ac.th, OTP,
+    // etc.) is a separate, bigger project than this rule change.
     //
-    // Every write to this collection now goes through Admin-SDK-only
-    // server endpoints that independently verify who's calling and
-    // what they're allowed to do:
-    //   - api/submit-slip.js       (students: always writes paid:false)
+    // Admins read this collection through api/admin/list-data.js
+    // (Admin SDK, bypasses these rules) instead of a direct client
+    // read, since an admin's uid will never equal every nuid.
+    //
+    // NOT writable from the client at all, from any session. Every
+    // write to this collection goes through Admin-SDK-only server
+    // endpoints that independently verify who's calling and what
+    // they're allowed to do:
+    //   - api/submit-slip.js        (students: always writes paid:false)
     //   - api/admin/approve-slip.js (admins only: the ONLY path to paid:true)
     //   - api/admin/set-status.js   (admins only)
     //   - api/admin/delete-slip.js  (admins only)
     match /payments/{nuid} {
-      allow read: if true;
+      allow read: if request.auth != null && request.auth.uid == nuid;
       allow write: if false;
     }
   }

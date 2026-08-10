@@ -1,4 +1,5 @@
 const admin = require("firebase-admin");
+const { rateLimit, clientIp } = require("./_lib/rate-limit");
 
 /* ------------------------------------------------------------
    Records a submitted payment slip after it's already been
@@ -24,11 +25,19 @@ const admin = require("firebase-admin");
      so a direct SDK write from the console (like the exploit script)
      no longer has any path to succeed.
 
-   This app has no password login (Nu ID only, see firebase.js), so
-   this endpoint still can't verify the caller truly owns the Nu ID
-   they're submitting for -- that's a pre-existing, separate gap.
-   What this endpoint DOES guarantee is that no submission can ever
-   mark itself paid; every slip is inert until an admin approves it.
+   This app still has no password login -- a Nu ID alone isn't proof
+   of identity. But the caller must now present a Firebase ID token
+   whose uid matches the nuid in the body (that uid comes from
+   /api/mint-session after logging in with that Nu ID -- see that
+   file for exactly what it does and doesn't guarantee). That closes
+   the "POST here directly, no login flow needed at all" gap; it does
+   NOT prove the person submitting is really that student, since
+   nothing stops someone from logging in with a classmate's Nu ID in
+   the first place.
+
+   What this endpoint DOES fully guarantee is that no submission can
+   ever mark itself paid; every slip is inert until an admin approves
+   it.
 
    Requires the same env var as api/admin/*.js (set in Vercel ->
    Project -> Settings -> Environment Variables):
@@ -55,10 +64,29 @@ module.exports = async function handler(request, response) {
   }
 
   try {
+    if (rateLimit(`submit-slip:${clientIp(request)}`, { limit: 10, windowMs: 60_000 }).limited) {
+      response.status(429).json({ error: "Too many requests, please slow down" });
+      return;
+    }
+
+    const authHeader = request.headers.authorization || "";
+    const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!idToken) {
+      response.status(401).json({ error: "Missing auth token" });
+      return;
+    }
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+
     const { nuid, fileName, slipUrl, slipPublicId } = request.body || {};
 
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
+      return;
+    }
+
+    if (decoded.uid !== nuid) {
+      response.status(403).json({ error: "Not authorized for this Nu ID" });
       return;
     }
     if (!fileName || typeof fileName !== "string") {
@@ -139,6 +167,6 @@ module.exports = async function handler(request, response) {
     response.status(200).json({ ok: true });
   } catch (err) {
     console.error("submit-slip failed:", err);
-    response.status(500).json({ error: err.message });
+    response.status(500).json({ error: "Internal server error" });
   }
 };
