@@ -1,83 +1,154 @@
 # CPE33 Payment System
 
-A payment-tracking site for CPE33 students at Naresuan University.
-
-- **Students** log in with their Nu ID, upload a payment slip, and check whether it's been approved.
-- **Admins** sign in with a whitelisted `@nu.ac.th` Google account and approve/reject slips, or manually set a student's status (normal / unpaid / terminated).
+Payment-tracking site for CPE33 students at Naresuan University.  
+Students upload a payment slip; admins review and approve it. Built on **Vercel** (serverless functions + static frontend), **Firebase** (Auth + Firestore), and **Cloudinary** (slip image storage).
 
 ---
 
-## 1. Requirements
+## How it works
 
-- [Node.js](https://nodejs.org/) (LTS version)
-- [Vercel CLI](https://vercel.com/docs/cli): `npm install -g vercel`
-- A Firebase project (Firestore + Authentication → Google sign-in enabled)
-- A Cloudinary account (for slip image uploads)
-
-## 2. Install dependencies
+### Overview
 
 ```
+Browser (student / admin)
+        │
+        │  HTTPS
+        ▼
+Vercel Edge (static files from /public)
+        │
+        │  /api/* routes
+        ▼
+Vercel Serverless Functions (Node.js, /api)
+        │
+        ├──► Firebase Admin SDK ──► Firestore (payment records, user roster)
+        │                      ──► Firebase Auth (token verification)
+        └──► Cloudinary API    ──► Cloudinary (slip images)
+```
+
+---
+
+### Student flow
+
+1. **Login** — Student enters their Nu ID on the home page (`/`).  
+   `POST /api/mint-session` checks the Nu ID against the Firestore `users` collection and returns a **Firebase custom token** with `uid = nuid`. The browser signs in with that token so all subsequent requests are authenticated as that student.
+
+2. **Upload slip** — Student picks an image file.  
+   `POST /api/sign-upload` returns a **Cloudinary signed-upload ticket** (server-chosen `public_id` under `slips/{nuid}/...`, with `overwrite:false` baked into the signature). The browser uploads directly to Cloudinary using that ticket — the server never touches the raw image bytes.
+
+3. **Submit slip** — After the upload succeeds, `POST /api/submit-slip` records the slip in Firestore (`payments/{nuid}`) with `paid: false` and `reviewStatus: "pending"`. The server independently re-verifies the Cloudinary asset before writing, so a fabricated URL can't be submitted.
+
+4. **Check status** — Student's stats page (`/stats`) reads `payments/{nuid}` from Firestore directly (owner-only Firestore rule: `request.auth.uid == nuid`). It shows `paid`, `reviewStatus`, and `studentStatus`.
+
+### Admin flow
+
+1. **Login** — Admin goes to `/admin/login.html` and signs in with Google (`signInWithPopup`). After a successful sign-in the browser is redirected to the dashboard.
+
+2. **Dashboard gate** — On every dashboard load, `dashboard.js` calls `POST /api/admin/check-admin` with the admin's Firebase ID token. The server verifies the token and checks the email against the admin whitelist (`ADMIN_EMAILS` env var). If the check fails the page redirects back to login. If it passes, the full roster is fetched from `POST /api/admin/list-data`.
+
+3. **Approve slip** — Admin clicks "อนุมัติ (Approve)".  
+   `POST /api/admin/approve-slip` verifies the token, re-checks the whitelist, then sets `paid: true`, `reviewStatus: "approved"` in Firestore. This is the **only place in the entire codebase that can write `paid: true`**.
+
+4. **Decline (delete) slip** — Admin clicks "ลบ".  
+   `POST /api/admin/delete-slip` verifies the token, re-checks the whitelist, deletes the image from Cloudinary (using the `slipPublicId` looked up from Firestore — not trusted from the client), and resets the payment record to `paid: false`, `reviewStatus: "rejected"`.
+
+5. **Set student status** — Admin changes the status dropdown (ปกติ / ยังไม่จ่าย / พ้นสภาพ).  
+   `POST /api/admin/set-status` verifies and applies the change. A student with `studentStatus: "termination"` cannot submit new slips.
+
+### Security model
+
+| Threat | Mitigation |
+|---|---|
+| Client writes `paid: true` directly to Firestore | Firestore rules deny **all** client writes to `payments/*` |
+| Fabricated Cloudinary URL submitted as a real slip | `submit-slip.js` calls the Cloudinary Admin API server-side to verify the asset exists and the URL matches before writing |
+| Unsigned Cloudinary upload under another student's path | `sign-upload.js` requires a token with `uid == nuid`; the server, not the browser, chooses the `public_id`; `overwrite:false` is signed into the ticket |
+| Admin whitelist bypass via client-side check | Every admin API endpoint independently verifies the Firebase ID token + whitelist server-side; the dashboard's client-side check is a UX gate only |
+| Admin session lost on token refresh / mid-action auth event | `dashboard.js` uses an `authHandlerRunning` mutex so concurrent `onAuthStateChanged` calls (e.g. mid-action token refresh) don't race and redirect to login |
+
+---
+
+## Setup
+
+### 1. Requirements
+
+- [Node.js](https://nodejs.org/) (LTS)
+- [Vercel CLI](https://vercel.com/docs/cli): `npm install -g vercel`
+- A Firebase project with **Firestore** and **Authentication → Google sign-in** enabled
+- A [Cloudinary](https://cloudinary.com/) account
+
+### 2. Install dependencies
+
+```bash
 npm install
 ```
 
-## 3. Environment variables
+### 3. Environment variables
 
-Create a `.env` file in the project root (already gitignored) with:
+Create a `.env` file in the project root (already in `.gitignore`):
 
-```
-ADMIN_EMAILS=your-admin1@nu.ac.th,your-admin2@nu.ac.th
+```env
+ADMIN_EMAILS=admin1@nu.ac.th,admin2@nu.ac.th
 FIREBASE_SERVICE_ACCOUNT_BASE64=<base64-encoded Firebase service account JSON>
 CLOUDINARY_API_KEY=<from Cloudinary dashboard>
 CLOUDINARY_API_SECRET=<from Cloudinary dashboard>
 ```
 
-- `FIREBASE_SERVICE_ACCOUNT_BASE64`: Firebase Console → Project settings → Service accounts → Generate new private key, then base64-encode the downloaded JSON file (e.g. `certutil -encode key.json key.b64` on Windows, or `base64 -i key.json` on Mac/Linux — strip line breaks/headers if using `certutil`).
-- Same variables need to be set in **Vercel → Project → Settings → Environment Variables** before deploying (for all environments you use: Production, Preview, Development).
-- `public/firebase.js` has its own Firebase **web** config (`apiKey`, `authDomain`, etc.) — that one is meant to be public, no changes needed unless you're pointing at a different Firebase project.
+**Getting `FIREBASE_SERVICE_ACCOUNT_BASE64`:**  
+Firebase Console → Project settings → Service accounts → Generate new private key → base64-encode the downloaded JSON:
+- Windows: `certutil -encode key.json key.b64` (then remove the header/footer lines and line breaks)
+- Mac/Linux: `base64 -i key.json | tr -d '\n'`
 
-## 4. Seed the student roster
+Set the same variables in **Vercel → Project → Settings → Environment Variables** for Production, Preview, and Development environments.
 
-The roster (Nu ID / name / email for all 91 students) lives in `scripts/roster-data.json`, which is gitignored — you'll need your own copy of that file locally. Then run:
+> `public/firebase.js` holds the Firebase **web** config (`apiKey`, `authDomain`, etc.) — that's intentionally public and doesn't need to change unless you're switching Firebase projects.
 
-```
+### 4. Seed the student roster
+
+The roster (Nu ID / name / email for all students) lives in `scripts/roster-data.json`, which is gitignored — you'll need your own copy locally. Then run:
+
+```bash
 node scripts/seed-users.js
 ```
 
-This writes the roster into Firestore. See the comments at the top of `scripts/seed-users.js` for two auth options (service account key file, or `gcloud auth application-default login`) if the script can't authenticate.
+This writes every student record into the Firestore `users` collection. See the comments at the top of `scripts/seed-users.js` for authentication options if it can't connect.
 
-## 5. Deploy Firestore rules
+### 5. Deploy Firestore rules
 
-```
+```bash
 firebase deploy --only firestore:rules
 ```
 
-(Running `vercel deploy` alone does **not** push `firestore.rules` — do this separately whenever you change that file.)
+`vercel deploy` does **not** push `firestore.rules` — run this separately whenever that file changes.
 
-## 6. Run it locally
+### 6. Run locally
 
-```
+```bash
 vercel dev
 ```
 
-This serves both the static frontend and the `/api` routes locally, so admin login, slip uploads, and Firestore reads/writes all work the same as production. It'll print a local URL (usually `http://localhost:3000`).
+Serves both the static frontend and all `/api` routes locally (usually `http://localhost:3000`). Admin login, slip uploads, and Firestore reads/writes all behave the same as production.
 
-## 7. Test the two flows
+### 7. Deploy to production
 
-**Student flow** — go to `/`, enter a Nu ID that exists in your seeded roster, upload a slip image.
-
-**Admin flow** — go to `/admin/login.html`, sign in with a Google account listed in your `ADMIN_EMAILS`. You should land on the dashboard and see the roster with pending/paid status, and be able to approve, delete, or change a student's status.
-
-## 8. Deploy
-
-```
+```bash
 vercel --prod
 ```
 
 ---
 
-## Notes while testing
+## Testing the flows
 
-- Admin sign-in uses a popup window (not a redirect) — make sure your browser isn't blocking popups for the test URL.
-- If you open the admin login link from inside LINE/Facebook/Instagram's in-app browser, Google Sign-In will refuse to work there (`disallowed_useragent`) — this is a Google restriction, not a bug. Open the link in Safari/Chrome directly.
-- A student marked **terminated** cannot submit a new slip — that's expected behavior, not an error.
-- A slip only counts as "paid" after an admin explicitly approves it — uploading alone doesn't mark someone as paid.
+**Student flow**  
+Go to `/`, enter a Nu ID from your seeded roster, upload any image as a slip.
+
+**Admin flow**  
+Go to `/admin/login.html`, sign in with a Google account listed in `ADMIN_EMAILS`. The dashboard should load the full roster. Try approving and declining slips.
+
+---
+
+## Notes
+
+- Admin sign-in uses a **popup** (not a redirect) because the app's Vercel domain differs from the Firebase `authDomain` — redirect sign-in requires reading the result back through the other domain's storage, which modern browsers block as third-party storage. Popups avoid this by using a `postMessage` channel instead.
+- If you open the admin login from inside LINE / Facebook / Instagram's in-app browser, Google Sign-In will refuse (`disallowed_useragent`) — that's a Google restriction, not a bug. Open the link in real Safari or Chrome.
+- Auth state is stored in `localStorage` (not IndexedDB) to avoid a long-standing Safari bug where IndexedDB intermittently hangs and causes Firebase to fire `onAuthStateChanged(null)` mid-session, which would bounce the admin to the login page.
+- A slip is **never** marked paid just by uploading — an admin must explicitly approve it.
+- A student marked **terminated** cannot submit a new slip; this is enforced both client-side (UX) and server-side (real check).

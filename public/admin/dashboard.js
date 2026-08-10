@@ -91,6 +91,19 @@ let currentAdminUser = null;
 // (possibly spurious) null.
 let everConfirmedAdmin = false;
 
+// Guards against concurrent handleAuthState calls. Firebase can fire
+// onAuthStateChanged multiple times in rapid succession -- notably when
+// it internally refreshes the ID token (which happens automatically
+// when a token is near expiry, and getIdToken() inside loadDashboard()
+// can trigger that). Without this guard, a second handleAuthState call
+// that arrives while loadDashboard() is still awaiting a fetch can
+// race with the first, hit a cold-start timeout on isAdminOnServer(),
+// and redirect the admin to login even though they are perfectly
+// signed in. The fix: if a handler invocation is already in progress,
+// skip the new one entirely -- the running invocation already holds
+// confirmed admin status and will finish on its own.
+let authHandlerRunning = false;
+
 const ADMIN_SEEN_KEY = "cpe33_admin_seen";
 
 function markAdminSeen() {
@@ -141,55 +154,71 @@ async function waitForRealSignOut() {
 }
 
 async function handleAuthState(user) {
-  if (!user) {
-    // Give the same benefit of the doubt to "this device had a
-    // confirmed admin recently, possibly in an earlier page load"
-    // (wasAdminSeenBefore) as to "confirmed a moment ago in this same
-    // page load" (everConfirmedAdmin). Only a device that has never
-    // been confirmed as admin at all gets bounced immediately.
-    if (!everConfirmedAdmin && !wasAdminSeenBefore()) {
-      // Normal case: nobody's signed in yet.
+  // If another invocation is already running (e.g. a rapid token-
+  // refresh event fired while loadDashboard() was still in flight),
+  // ignore this one -- the in-progress call already has confirmed admin
+  // status and will complete on its own. Without this guard the two
+  // calls can race: the second one starts isAdminOnServer() while
+  // loadDashboard() is still awaiting a fetch; if the check hits a
+  // cold-start timeout it may redirect to login mid-action.
+  if (authHandlerRunning) return;
+  authHandlerRunning = true;
+
+  try {
+    if (!user) {
+      // Give the same benefit of the doubt to "this device had a
+      // confirmed admin recently, possibly in an earlier page load"
+      // (wasAdminSeenBefore) as to "confirmed a moment ago in this same
+      // page load" (everConfirmedAdmin). Only a device that has never
+      // been confirmed as admin at all gets bounced immediately.
+      if (!everConfirmedAdmin && !wasAdminSeenBefore()) {
+        // Normal case: nobody's signed in yet.
+        goToLogin();
+        return;
+      }
+      // Real sign-outs (the logout link, a revoked token) are legitimate
+      // and should still bounce to login -- but a spurious null (Safari's
+      // IndexedDB hiccup, or a slow session restore / network reconnect
+      // after this tab was backgrounded or discarded for a while) can
+      // misreport this for a session that's actually still fine.
+      const reallySignedOut = await waitForRealSignOut();
+      if (!reallySignedOut) {
+        // Recovered -- the null was spurious. Nothing to do; the next
+        // real onAuthStateChanged/getIdToken call will keep working.
+        return;
+      }
       goToLogin();
       return;
     }
-    // Real sign-outs (the logout link, a revoked token) are legitimate
-    // and should still bounce to login -- but a spurious null (Safari's
-    // IndexedDB hiccup, or a slow session restore / network reconnect
-    // after this tab was backgrounded or discarded for a while) can
-    // misreport this for a session that's actually still fine.
-    const reallySignedOut = await waitForRealSignOut();
-    if (!reallySignedOut) {
-      // Recovered -- the null was spurious. Nothing to do; the next
-      // real onAuthStateChanged/getIdToken call will keep working.
+
+    const status = await isAdminOnServer(user);
+    if (status === "not-admin") {
+      goToLogin();
       return;
     }
-    goToLogin();
-    return;
-  }
-
-  const status = await isAdminOnServer(user);
-  if (status === "not-admin") {
-    goToLogin();
-    return;
-  }
-  if (status === "error") {
-    // Couldn't confirm either way (network blip, cold start, etc).
-    // Retry once before giving up, instead of immediately bouncing a
-    // real admin out over a transient failure.
-    const retryStatus = await isAdminOnServer(user);
-    if (retryStatus !== "admin") {
-      loadingText.textContent = "ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
-      return;
+    if (status === "error") {
+      // Couldn't confirm either way (network blip, cold start, etc).
+      // Retry once before giving up, instead of immediately bouncing a
+      // real admin out over a transient failure.
+      const retryStatus = await isAdminOnServer(user);
+      if (retryStatus !== "admin") {
+        loadingText.textContent = "ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
+        return;
+      }
     }
-  }
 
-  everConfirmedAdmin = true;
-  markAdminSeen();
-  currentAdminUser = user;
-  welcomeMsg.textContent = `Welcome ${user.email}`;
-  // Only reveal the page content after we've confirmed this is a real admin.
-  mainContent.style.display = "flex";
-  loadDashboard();
+    everConfirmedAdmin = true;
+    markAdminSeen();
+    currentAdminUser = user;
+    welcomeMsg.textContent = `Welcome ${user.email}`;
+    // Only reveal the page content after we've confirmed this is a real admin.
+    mainContent.style.display = "flex";
+    loadDashboard();
+  } finally {
+    // Always release the lock so a genuine future auth event (real
+    // sign-out, account switch) can still be processed.
+    authHandlerRunning = false;
+  }
 }
 
 onAuthStateChanged(auth, handleAuthState);
