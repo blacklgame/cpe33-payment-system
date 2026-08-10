@@ -91,6 +91,49 @@ function wasAdminSeenBefore() {
 
 const mainContent = document.getElementById("mainContent");
 
+// Every admin API call goes through here instead of calling fetch()
+// directly. The reason: a Firebase ID token is only good for ~1
+// hour, and the SDK's own background refresh timer can slip (e.g.
+// the tab sat inactive/backgrounded for a while, which browsers
+// throttle) -- so `currentAdminUser.getIdToken()` can occasionally
+// hand back a token that's already expired by the time the server
+// checks it, and the request comes back 401/403 even though the
+// admin is genuinely still signed in.
+//
+// Previously that 401/403 was taken at face value as "really signed
+// out" and sent the admin back to login -- annoying and wrong, since
+// signing in again gets a brand new (valid) token and the very same
+// action then works fine. Instead: on a 401/403, force Firebase to
+// mint a *real* fresh token (getIdToken(true) skips the local cache
+// and talks to Firebase directly) and retry exactly once before
+// treating it as an actual sign-out. Callers only see genuine auth
+// failures now.
+async function authorizedFetch(url, body) {
+  let idToken = await currentAdminUser.getIdToken();
+  let res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    idToken = await currentAdminUser.getIdToken(true);
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`
+      },
+      body: JSON.stringify(body)
+    });
+  }
+
+  return res;
+}
+
 function goToLogin() {
   stopAutoRefresh();
   clearAdminSeen();
@@ -196,16 +239,12 @@ async function loadDashboard() {
   rowsContainer.innerHTML = "";
 
   try {
-    const idToken = await currentAdminUser.getIdToken();
-    const res = await fetch("/api/admin/list-data", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`
-      }
-    });
+    const res = await authorizedFetch("/api/admin/list-data", {});
 
     if (res.status === 401 || res.status === 403) {
+      // Already retried once with a forced-fresh token inside
+      // authorizedFetch -- still unauthorized means this really is a
+      // dead session, so this redirect is now trustworthy.
       goToLogin();
       return;
     }
@@ -285,14 +324,7 @@ async function refreshDashboardSilently() {
   if (!everConfirmedAdmin || !currentAdminUser || actionInFlight) return;
 
   try {
-    const idToken = await currentAdminUser.getIdToken();
-    const res = await fetch("/api/admin/list-data", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`
-      }
-    });
+    const res = await authorizedFetch("/api/admin/list-data", {});
 
     // Don't bounce to login from a background tick -- a transient
     // token/network blip here doesn't mean the admin actually got
@@ -560,16 +592,7 @@ async function handleStatusChange(nuid, newStatus, selectEl, card) {
   actionInFlight = true;
 
   try {
-    const idToken = await currentAdminUser.getIdToken();
-
-    const res = await fetch("/api/admin/set-status", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`
-      },
-      body: JSON.stringify({ nuid, status: newStatus })
-    });
+    const res = await authorizedFetch("/api/admin/set-status", { nuid, status: newStatus });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -605,16 +628,7 @@ async function handleApprove(nuid, triggerEl) {
   actionInFlight = true;
 
   try {
-    const idToken = await currentAdminUser.getIdToken();
-
-    const res = await fetch("/api/admin/approve-slip", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`
-      },
-      body: JSON.stringify({ nuid })
-    });
+    const res = await authorizedFetch("/api/admin/approve-slip", { nuid });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -643,16 +657,7 @@ async function handleDelete(nuid, slipPublicId, triggerEl) {
   actionInFlight = true;
 
   try {
-    const idToken = await currentAdminUser.getIdToken();
-
-    const res = await fetch("/api/admin/delete-slip", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`
-      },
-      body: JSON.stringify({ nuid, slipPublicId })
-    });
+    const res = await authorizedFetch("/api/admin/delete-slip", { nuid, slipPublicId });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
