@@ -1,31 +1,11 @@
 {
   "dependencies": {
-    "cloudinary": "^2.5.0",
     "firebase": "^12.17.1",
     "firebase-admin": "^12.0.0",
-    "lodash": "^4.18.1"
+    "cloudinary": "^2.5.0"
   },
   "allowScripts": {
     "@firebase/util@1.15.2": true,
     "protobufjs@7.6.5": true
-  },
-  "name": "cpe33-clean",
-  "version": "1.0.0",
-  "description": "Payment-tracking site for CPE33 students at Naresuan University.   Students upload a payment slip; admins review and approve it. Built on **Vercel** (serverless functions + static frontend), **Firebase** (Auth + Firestore), and **Cloudinary** (slip image storage).",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/blacklgame/cpe33-payment-system.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/blacklgame/cpe33-payment-system/issues"
-  },
-  "homepage": "https://github.com/blacklgame/cpe33-payment-system#readme"
+  }
 }
