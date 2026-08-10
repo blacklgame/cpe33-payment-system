@@ -11,3 +11,6 @@ yarn-error.log*
 
 *.zip
 
+
+# admin whitelist -- never commit real emails
+config/admin-emails.json
