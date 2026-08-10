@@ -141,7 +141,7 @@ sendBtn.addEventListener("click", async () => {
     // 1) Ask our server for a signed-upload ticket: it decides the
     //    public_id (always under slips/{this user's own id}/...)
     //    and signs overwrite:false, so the browser can't pick or
-    //    clobber any other path.
+    //    clobber any other path
     const signRes = await fetch("/api/sign-upload", {
       method: "POST",
       headers: {
@@ -160,7 +160,7 @@ sendBtn.addEventListener("click", async () => {
 
     // 2) Upload straight to Cloudinary using that signature. Every
     //    signed param here must match exactly what the server
-    //    signed, or Cloudinary rejects the upload.
+    //    signed, or Cloudinary rejects the upload
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("api_key", apiKey);
