@@ -78,30 +78,87 @@ let currentAdminUser = null;
 // admin in this page load. Used below to tell "never logged in" (bounce
 // immediately) apart from "was logged in a second ago, now Firebase
 // says null" (worth a brief second look before trusting it).
+//
+// This alone isn't enough, though: it's just an in-memory variable, so
+// it resets to false on every fresh page load. If the tab was swapped
+// away from for a long time, mobile browsers commonly discard/reload
+// the tab entirely to save memory -- that's a fresh page load, not a
+// "moments ago" case, so this flag can't help there even though the
+// admin never actually logged out. ADMIN_SEEN_KEY (below) is the fix
+// for that: it survives a full reload, so we can still recognize
+// "this device had a confirmed admin session recently" and give the
+// same grace period, instead of bouncing to login on the very first
+// (possibly spurious) null.
 let everConfirmedAdmin = false;
+
+const ADMIN_SEEN_KEY = "cpe33_admin_seen";
+
+function markAdminSeen() {
+  try {
+    localStorage.setItem(ADMIN_SEEN_KEY, "1");
+  } catch {
+    // Storage unavailable (private browsing etc) -- fine, just means
+    // this device won't get the reload-grace-period benefit.
+  }
+}
+
+function clearAdminSeen() {
+  try {
+    localStorage.removeItem(ADMIN_SEEN_KEY);
+  } catch {
+    // no-op
+  }
+}
+
+function wasAdminSeenBefore() {
+  try {
+    return localStorage.getItem(ADMIN_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 const mainContent = document.getElementById("mainContent");
 
 function goToLogin() {
+  clearAdminSeen();
   window.location.href = "./login.html";
+}
+
+// Waits for a spurious onAuthStateChanged(null) to resolve itself.
+// Recovering from a long-backgrounded/discarded tab can mean waiting
+// on BOTH a local Firebase session restore AND a real network
+// reconnect, so a single short wait isn't always enough -- this backs
+// off over a few checks (~4.8s total) before concluding it's a real
+// sign-out.
+async function waitForRealSignOut() {
+  const delaysMs = [800, 1500, 2500];
+  for (const ms of delaysMs) {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    if (auth.currentUser) return false; // recovered -- was spurious
+  }
+  return true;
 }
 
 async function handleAuthState(user) {
   if (!user) {
-    if (!everConfirmedAdmin) {
+    // Give the same benefit of the doubt to "this device had a
+    // confirmed admin recently, possibly in an earlier page load"
+    // (wasAdminSeenBefore) as to "confirmed a moment ago in this same
+    // page load" (everConfirmedAdmin). Only a device that has never
+    // been confirmed as admin at all gets bounced immediately.
+    if (!everConfirmedAdmin && !wasAdminSeenBefore()) {
       // Normal case: nobody's signed in yet.
       goToLogin();
       return;
     }
-    // We had a confirmed admin session moments ago and Firebase Auth
-    // just reported null. Real sign-outs (the logout link, a revoked
-    // token) are legitimate and should still bounce to login -- but
-    // some browsers (notably Safari, due to an intermittent IndexedDB
-    // bug in the auth SDK's local session storage) can misreport this
-    // for a session that's actually still fine. Give it one grace
-    // check instead of trusting the very first null immediately.
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    if (auth.currentUser) {
+    // Real sign-outs (the logout link, a revoked token) are legitimate
+    // and should still bounce to login -- but a spurious null (Safari's
+    // IndexedDB hiccup, or a slow session restore / network reconnect
+    // after this tab was backgrounded or discarded for a while) can
+    // misreport this for a session that's actually still fine.
+    const reallySignedOut = await waitForRealSignOut();
+    if (!reallySignedOut) {
       // Recovered -- the null was spurious. Nothing to do; the next
       // real onAuthStateChanged/getIdToken call will keep working.
       return;
@@ -127,6 +184,7 @@ async function handleAuthState(user) {
   }
 
   everConfirmedAdmin = true;
+  markAdminSeen();
   currentAdminUser = user;
   welcomeMsg.textContent = `Welcome ${user.email}`;
   // Only reveal the page content after we've confirmed this is a real admin.
@@ -138,6 +196,7 @@ onAuthStateChanged(auth, handleAuthState);
 
 logoutLink.addEventListener("click", async (e) => {
   e.preventDefault();
+  clearAdminSeen();
   await signOut(auth);
   window.location.href = "./login.html";
 });
