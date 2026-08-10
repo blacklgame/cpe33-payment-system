@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "firebase": "^12.17.1",
+    "firebase-admin": "^12.0.0",
+    "cloudinary": "^2.5.0"
+  },
+  "allowScripts": {
+    "@firebase/util@1.15.2": true,
+    "protobufjs@7.6.5": true
+  }
+}

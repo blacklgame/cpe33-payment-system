@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stat - Payment Status</title>
+  <!-- Google Fonts: Inter & Noto Sans Thai -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+Thai:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header>
+    <div class="brand">
+      <span class="badge">CPE</span>
+      <span class="version">33</span>
+    </div>
+    <nav class="nav-links">
+      <a href="../logined/index.html" class="nav-link">หน้าหลัก</a>
+      <a href="#" class="nav-link" id="logoutLink">ออกจากระบบ</a>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <div class="page-title">
+      <h1>สถานะของฉัน</h1>
+      <p class="page-subtitle" id="greeting">กำลังโหลดข้อมูล...</p>
+    </div>
+
+    <!-- Main status card: color-coded left border + big pill,
+         mirrors the admin dashboard's card language so the same
+         status always looks the same everywhere. -->
+    <div class="status-card" id="statusCard">
+      <div class="status-card-top">
+        <span class="status-pill" id="statusBadge">-</span>
+      </div>
+
+      <div class="profile-block">
+        <div class="avatar-placeholder"></div>
+        <div class="profile-text">
+          <div class="user-name" id="userName">-</div>
+          <div class="user-email" id="userEmail">-</div>
+        </div>
+      </div>
+
+      <div class="status-note" id="statusNote"></div>
+
+      <a href="#" target="_blank" rel="noopener" class="slip-link" id="slipLink">ดูสลิปที่อัปโหลด</a>
+    </div>
+
+    <!-- Quick-glance detail tiles, admin-dashboard-style. -->
+    <div class="detail-grid" id="detailGrid">
+      <div class="detail-tile">
+        <div class="detail-label">รหัสนิสิต</div>
+        <div class="detail-value" id="detailNuid">-</div>
+      </div>
+      <div class="detail-tile">
+        <div class="detail-label">สถานะการชำระเงิน</div>
+        <div class="detail-value" id="detailPaid">-</div>
+      </div>
+      <div class="detail-tile">
+        <div class="detail-label">สถานะนิสิต</div>
+        <div class="detail-value" id="detailStudentStatus">-</div>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="index.js"></script>
+</body>
+</html>
