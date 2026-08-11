@@ -57,7 +57,7 @@ module.exports = async function handler(request, response) {
     const isVerified = !!decoded.email_verified || isGoogle;
 
     if (!isVerified || !(await checkIsAdmin(email))) {
-      response.status(403).json({ error: "Not an approved admin" });
+      response.status(403).json({ error: "Not an approved admin", email });
       return;
     }
 

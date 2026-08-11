@@ -58,12 +58,25 @@ import { auth } from "../firebase.js";
 const signInBtn = document.querySelector(".btn-google");
 const errorText = document.getElementById("errorText");
 
-// Note: We no longer fetch admin-emails.json here -- the file has
-// been moved out of the public folder and is no longer accessible
-// from the browser. The real whitelist check happens server-side
-// (api/admin/check-admin.js). The dashboard.js auth gate (which runs
-// immediately on load) will redirect non-admins back to this login
-// page before any data is shown.
+// On redirect back from dashboard.html with ?error=forbidden, show a
+// clear message explaining which email was rejected and how to fix it.
+// This happens when the user signs in with a valid Google account but
+// that email isn't in the Firestore "admins" collection yet.
+(function showForbiddenError() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("error") !== "forbidden") return;
+  const email = params.get("email") || "";
+  if (email) {
+    errorText.innerHTML =
+      `<strong>อีเมล ${email} ไม่มีสิทธิ์เข้าถึงระบบผู้ดูแล</strong><br>` +
+      `กรุณาเพิ่มอีเมลนี้ใน Firebase → Firestore → คอลเลกชัน <code>admins</code> แล้วลองใหม่<br>` +
+      `<small>(Email "${email}" is not whitelisted. Add it to the Firestore "admins" collection.)</small>`;
+  } else {
+    errorText.innerHTML =
+      `<strong>บัญชีนี้ไม่มีสิทธิ์เข้าถึงระบบผู้ดูแล</strong><br>` +
+      `กรุณาใช้อีเมลที่ได้รับอนุญาต หรือเพิ่มอีเมลของคุณใน Firebase → Firestore → คอลเลกชัน <code>admins</code>`;
+  }
+})();
 
 function describeError(err) {
   switch (err.code) {

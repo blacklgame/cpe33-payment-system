@@ -255,11 +255,25 @@ async function loadDashboard() {
   try {
     const res = await authorizedFetch("/api/admin/list-data", {});
 
-    if (res.status === 401 || res.status === 403) {
-      // Already retried once with a forced-fresh token inside
-      // authorizedFetch -- still unauthorized means this really is a
-      // dead session, so this redirect is now trustworthy.
+    if (res.status === 401) {
+      // Token expired/invalid after retry -- dead session.
       goToLogin();
+      return;
+    }
+
+    if (res.status === 403) {
+      // Not an approved admin. Try to extract which email was rejected
+      // so the login page can show a clear, actionable message.
+      let rejectedEmail = "";
+      try {
+        const body = await res.json();
+        if (body && body.email) rejectedEmail = body.email;
+      } catch (_) { /* ignore parse errors */ }
+      stopAutoRefresh();
+      clearAdminSeen();
+      const params = new URLSearchParams({ error: "forbidden" });
+      if (rejectedEmail) params.set("email", rejectedEmail);
+      window.location.href = "./login.html?" + params.toString();
       return;
     }
 

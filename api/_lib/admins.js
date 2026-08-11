@@ -43,6 +43,7 @@ async function checkIsAdmin(email) {
   if (admin.apps.length) {
     try {
       const db = admin.firestore();
+      // First try direct lookup using lowercased email as document ID
       const adminDoc = await db.collection("admins").doc(lowerEmail).get();
       if (adminDoc.exists) {
         const data = adminDoc.data();
@@ -50,6 +51,21 @@ async function checkIsAdmin(email) {
           return false;
         }
         return true;
+      }
+
+      // Fallback: list all admins and check case-insensitively (handles manual creation casing / field mistakes)
+      const adminsSnap = await db.collection("admins").get();
+      for (const doc of adminsSnap.docs) {
+        const docIdLower = doc.id.toLowerCase().trim();
+        const data = doc.data();
+        const emailField = data && typeof data.email === "string" ? data.email.toLowerCase().trim() : null;
+
+        if (docIdLower === lowerEmail || emailField === lowerEmail) {
+          if (data && data.enabled === false) {
+            return false;
+          }
+          return true;
+        }
       }
     } catch (err) {
       console.warn("Failed to check admin status in Firestore, falling back:", err.message);
