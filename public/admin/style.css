@@ -1,0 +1,9 @@
+/*
+  Admin dashboard styles are written inside a <style> block in
+  dashboard.html rather than this external file.
+
+  This file is intentionally left empty — it exists so the link element
+  in login.html (which references style.css) doesn't produce a 404.
+  If you want to move the dashboard styles out of the HTML in the
+  future, put them here and remove the <style> block from dashboard.html.
+*/

@@ -16,6 +16,12 @@ if (!raw) {
 
   document.getElementById("userName").textContent = user.name;
   document.getElementById("userEmail").textContent = user.email;
+
+  // Show first initial inside the avatar circle instead of leaving it empty
+  const avatarEl = document.querySelector(".avatar-placeholder");
+  if (avatarEl) {
+    avatarEl.textContent = user.name ? user.name.trim()[0].toUpperCase() : "?";
+  }
 }
 
 document.getElementById("logoutLink").addEventListener("click", (e) => {

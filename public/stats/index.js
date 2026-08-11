@@ -54,6 +54,12 @@ if (!raw) {
   document.getElementById("userEmail").textContent = user.email;
   document.getElementById("detailNuid").textContent = user.id;
 
+  // Show first initial inside the avatar circle
+  const avatarEl = document.querySelector(".avatar-placeholder");
+  if (avatarEl) {
+    avatarEl.textContent = user.name ? user.name.trim()[0].toUpperCase() : "?";
+  }
+
   const statusCard = document.getElementById("statusCard");
   const statusBadge = document.getElementById("statusBadge");
   const statusNote = document.getElementById("statusNote");

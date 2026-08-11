@@ -143,3 +143,32 @@
       min-height: 1.2em;
       margin-top: -8px;
     }
+
+    /* Mobile responsive adjustments */
+    @media (max-width: 480px) {
+      header {
+        padding: 16px 20px;
+      }
+
+      main {
+        padding: 40px 16px;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+      }
+
+      .subtitle {
+        font-size: 1rem;
+      }
+
+      .input-field {
+        font-size: 1rem;
+        padding: 14px 20px;
+      }
+
+      .btn-enter {
+        width: 70%;
+        font-size: 1.2rem;
+      }
+    }

@@ -542,6 +542,8 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
 
   const avatar = document.createElement("div");
   avatar.className = "avatar-placeholder";
+  // Show first initial so it's not just an empty grey circle
+  avatar.textContent = name && name.trim() ? name.trim()[0].toUpperCase() : "?";
   card.appendChild(avatar);
 
   const nameEl = document.createElement("div");
@@ -578,17 +580,32 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
         handleApprove(nuid, approveLink);
       });
       actions.appendChild(approveLink);
-    }
 
-    const deleteLink = document.createElement("a");
-    deleteLink.href = "#";
-    deleteLink.className = "action-btn-delete";
-    deleteLink.textContent = "ลบ";
-    deleteLink.addEventListener("click", (e) => {
-      e.preventDefault();
-      handleDelete(nuid, slipPublicId, deleteLink);
-    });
-    actions.appendChild(deleteLink);
+      // Reject button: same as delete under the hood (removes the slip
+      // from Cloudinary and sets reviewStatus:"rejected"), but shown
+      // as a distinct action so the intent is unambiguous -- admin is
+      // explicitly rejecting this slip, not just deleting it.
+      const rejectLink = document.createElement("a");
+      rejectLink.href = "#";
+      rejectLink.className = "action-btn-delete";
+      rejectLink.textContent = "ปฏิเสธ (Reject)";
+      rejectLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        handleReject(nuid, slipPublicId, rejectLink);
+      });
+      actions.appendChild(rejectLink);
+    } else {
+      // Slip exists but is already approved (paid:true) -- only show delete.
+      const deleteLink = document.createElement("a");
+      deleteLink.href = "#";
+      deleteLink.className = "action-btn-delete";
+      deleteLink.textContent = "ลบ";
+      deleteLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        handleDelete(nuid, slipPublicId, deleteLink);
+      });
+      actions.appendChild(deleteLink);
+    }
   } else {
     const noSlip = document.createElement("span");
     noSlip.className = "action-btn-view";
@@ -662,6 +679,35 @@ async function handleApprove(nuid, triggerEl) {
   } catch (err) {
     console.error("Approve failed:", err);
     alert("อนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    triggerEl.textContent = originalText;
+  } finally {
+    actionInFlight = false;
+  }
+}
+
+async function handleReject(nuid, slipPublicId, triggerEl) {
+  const confirmed = window.confirm(
+    `ยืนยันปฏิเสธสลิปของรหัสนิสิต ${nuid}?\nสลิปจะถูกลบและสถานะจะเปลี่ยนเป็น "สลิปถูกปฏิเสธ"\nนิสิตจะสามารถอัปโหลดสลิปใหม่ได้อีกครั้ง`
+  );
+  if (!confirmed) return;
+
+  const originalText = triggerEl.textContent;
+  triggerEl.textContent = "กำลังปฏิเสธ...";
+  actionInFlight = true;
+
+  try {
+    const res = await authorizedFetch("/api/admin/delete-slip", { nuid, slipPublicId });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || "Reject failed");
+    }
+
+    // Reload so the row reflects the new rejected state immediately.
+    await loadDashboard();
+  } catch (err) {
+    console.error("Reject failed:", err);
+    alert("ปฏิเสธไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
     triggerEl.textContent = originalText;
   } finally {
     actionInFlight = false;

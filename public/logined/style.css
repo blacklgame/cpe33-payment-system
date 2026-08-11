@@ -98,6 +98,13 @@
       background-color: #435e7d;
       border-radius: 50%;
       margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #ffffff;
+      user-select: none;
     }
 
     .user-name {
