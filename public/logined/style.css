@@ -120,21 +120,173 @@
     }
 
     .bank-card {
+      background: linear-gradient(135deg, #0c2d22 0%, #051410 100%);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding: 28px 32px;
+      text-align: left;
+    }
+
+    /* Decorative bank card glowing corner */
+    .bank-card::after {
+      content: "";
+      position: absolute;
+      top: -50%;
+      right: -30%;
+      width: 250px;
+      height: 250px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .bank-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 14px;
+    }
+
+    .bank-logo-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .bank-logo-icon {
+      background-color: #10b981;
+      color: #ffffff;
+      font-size: 0.7rem;
+      font-weight: 900;
+      padding: 3px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    .bank-name-label {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .bank-card-type {
+      font-size: 0.7rem;
+      color: #10b981;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      background-color: rgba(16, 185, 129, 0.1);
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+
+    .bank-card-number-area {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      padding: 28px 32px;
     }
 
-    .bank-line {
-      font-size: 1.5rem;
+    .bank-number-label {
+      font-size: 0.75rem;
+      color: #64748b;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .bank-number-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .bank-number {
+      font-size: 1.7rem;
       font-weight: 700;
-      line-height: 1.6;
       color: #ffffff;
+      letter-spacing: 1.5px;
     }
 
-    .bank-label {
-      font-weight: 700;
+    .btn-copy {
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #94a3b8;
+      border-radius: 8px;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .btn-copy:hover {
+      background-color: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: #10b981;
+    }
+
+    .btn-copy:active {
+      transform: scale(0.95);
+    }
+
+    .copy-tooltip {
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      background-color: #0b1524;
+      color: #ffffff;
+      font-size: 0.75rem;
+      padding: 4px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .btn-copy:hover .copy-tooltip {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .copy-tooltip.copied {
+      background-color: #10b981;
+      border-color: #10b981;
+    }
+
+    .bank-card-holder-area {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .bank-holder-label {
+      font-size: 0.75rem;
+      color: #64748b;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .bank-holder-names {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .bank-holder-name {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #f1f5f9;
     }
 
     /* Upload Card */

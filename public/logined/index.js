@@ -223,3 +223,53 @@ sendBtn.addEventListener("click", async () => {
     sendBtn.disabled = false;
   }
 });
+
+/* ------------------------------------------------------------
+   3) Copy Account Number to Clipboard
+------------------------------------------------------------ */
+const btnCopy = document.getElementById("btnCopyNumber");
+const bankAccountNumber = document.getElementById("bankAccountNumber");
+const copyTooltip = document.getElementById("copyTooltip");
+
+if (btnCopy && bankAccountNumber && copyTooltip) {
+  btnCopy.addEventListener("click", async () => {
+    // Extract digits only for easy bank transfer paste
+    const cleanNumber = bankAccountNumber.textContent.replace(/-/g, "");
+    try {
+      await navigator.clipboard.writeText(cleanNumber);
+      copyTooltip.textContent = "คัดลอกสำเร็จ!";
+      copyTooltip.classList.add("copied");
+      btnCopy.style.color = "#10b981";
+      btnCopy.style.borderColor = "rgba(16, 185, 129, 0.5)";
+      btnCopy.style.backgroundColor = "rgba(16, 185, 129, 0.1)";
+
+      setTimeout(() => {
+        copyTooltip.textContent = "คัดลอก";
+        copyTooltip.classList.remove("copied");
+        btnCopy.style.color = "";
+        btnCopy.style.borderColor = "";
+        btnCopy.style.backgroundColor = "";
+      }, 2000);
+    } catch (err) {
+      console.error("Failed to copy text:", err);
+      // Fallback for older browsers
+      const textarea = document.createElement("textarea");
+      textarea.value = cleanNumber;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        copyTooltip.textContent = "คัดลอกสำเร็จ!";
+        copyTooltip.classList.add("copied");
+        setTimeout(() => {
+          copyTooltip.textContent = "คัดลอก";
+          copyTooltip.classList.remove("copied");
+        }, 2000);
+      } catch (fallbackErr) {
+        copyTooltip.textContent = "คัดลอกไม่สำเร็จ";
+      }
+      document.body.removeChild(textarea);
+    }
+  });
+}
+

@@ -38,9 +38,36 @@
 
     <!-- Bank Account Card -->
     <div class="card bank-card">
-      <p class="bank-line"><span class="bank-label">ธนาคาร:</span> กสิกรไทย</p>
-      <p class="bank-line"><span class="bank-label">ชื่อบัญชี:</span> นาย ณัฐพัชร์ เบ้าตุ้ม</p>
-      <p class="bank-line"><span class="bank-label">เลขบัญชี:</span> 1331-303-980</p>
+      <div class="bank-card-header">
+        <div class="bank-logo-area">
+          <div class="bank-logo-icon">KBANK</div>
+          <span class="bank-name-label">ธนาคารกสิกรไทย</span>
+        </div>
+        <span class="bank-card-type">ออมทรัพย์ / Savings</span>
+      </div>
+      
+      <div class="bank-card-number-area">
+        <div class="bank-number-label">เลขที่บัญชี / ACCOUNT NUMBER</div>
+        <div class="bank-number-row">
+          <span class="bank-number" id="bankAccountNumber">236-8-55805-5</span>
+          <button type="button" class="btn-copy" id="btnCopyNumber" title="คัดลอกเลขบัญชี">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span class="copy-tooltip" id="copyTooltip">คัดลอก</span>
+          </button>
+        </div>
+      </div>
+      
+      <div class="bank-card-holder-area">
+        <div class="bank-holder-label">ชื่อบัญชี / ACCOUNT NAME</div>
+        <div class="bank-holder-names">
+          <div class="bank-holder-name">น.ส. เกวลี บันทะนะ</div>
+          <div class="bank-holder-name">น.ส. พนัชกร ยอดคง</div>
+          <div class="bank-holder-name">นาย วรถันต์ ปังคานนท์</div>
+        </div>
+      </div>
     </div>
 
     <!-- Upload Payment Slip Card -->
