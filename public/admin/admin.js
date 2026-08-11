@@ -56,7 +56,16 @@ import {
 import { auth } from "../firebase.js";
 
 const signInBtn = document.querySelector(".btn-google");
+const btnIconWrapper = signInBtn.querySelector(".google-icon-wrapper");
+const btnLabel = signInBtn.querySelector(".btn-label");
 const errorText = document.getElementById("errorText");
+const originalIconHTML = btnIconWrapper.innerHTML;
+
+function setSigningInState(isSigningIn) {
+  signInBtn.disabled = isSigningIn;
+  btnLabel.textContent = isSigningIn ? "กำลังเข้าสู่ระบบ..." : "Sign in with NU Account";
+  btnIconWrapper.innerHTML = isSigningIn ? '<span class="spinner"></span>' : originalIconHTML;
+}
 
 // On redirect back from dashboard.html with ?error=forbidden, show a
 // clear message explaining which email was rejected and how to fix it.
@@ -96,7 +105,7 @@ function describeError(err) {
 
 signInBtn.addEventListener("click", async () => {
   errorText.textContent = "";
-  signInBtn.disabled = true;
+  setSigningInState(true);
 
   try {
     const provider = new GoogleAuthProvider();
@@ -115,6 +124,6 @@ signInBtn.addEventListener("click", async () => {
   } catch (err) {
     console.error("Admin sign-in failed:", err);
     errorText.textContent = describeError(err);
-    signInBtn.disabled = false;
+    setSigningInState(false);
   }
 });
