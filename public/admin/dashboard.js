@@ -83,10 +83,23 @@ function clearAdminSeen() {
 
 function wasAdminSeenBefore() {
   try {
-    return localStorage.getItem(ADMIN_SEEN_KEY) === "1";
+    if (localStorage.getItem(ADMIN_SEEN_KEY) === "1") {
+      return true;
+    }
+    // Fallback: check if there is an active Firebase Auth user session in localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("firebase:authUser:")) {
+        const val = localStorage.getItem(key);
+        if (val && val.length > 2) {
+          return true;
+        }
+      }
+    }
   } catch {
     return false;
   }
+  return false;
 }
 
 const mainContent = document.getElementById("mainContent");
@@ -160,6 +173,7 @@ async function handleAuthState(user) {
     if (everConfirmedAdmin) return;
 
     welcomeMsg.textContent = `Welcome ${user.email}`;
+    mainContent.style.display = "flex"; // Show main content area so loading text is visible
     loadDashboard();
     return;
   }
