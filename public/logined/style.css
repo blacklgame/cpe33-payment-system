@@ -277,16 +277,11 @@
       letter-spacing: 0.5px;
     }
 
-    .bank-holder-names {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
     .bank-holder-name {
       font-size: 1.15rem;
       font-weight: 600;
       color: #f1f5f9;
+      line-height: 1.5;
     }
 
     /* Upload Card */
