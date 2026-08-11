@@ -49,8 +49,11 @@ module.exports = async function handler(request, response) {
     const decoded = await admin.auth().verifyIdToken(idToken);
     const email = (decoded.email || "").toLowerCase();
 
+    const isGoogle = decoded.firebase && decoded.firebase.sign_in_provider === "google.com";
+    const isVerified = !!decoded.email_verified || isGoogle;
+
     const isAdmin =
-      !!decoded.email_verified &&
+      isVerified &&
       (await checkIsAdmin(email));
 
     // Always return 200 with a boolean rather than 403, so the client

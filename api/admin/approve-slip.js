@@ -49,8 +49,10 @@ module.exports = async function handler(request, response) {
 
     const decoded = await admin.auth().verifyIdToken(idToken);
     const email = (decoded.email || "").toLowerCase();
+    const isGoogle = decoded.firebase && decoded.firebase.sign_in_provider === "google.com";
+    const isVerified = !!decoded.email_verified || isGoogle;
 
-    if (!decoded.email_verified || !(await checkIsAdmin(email))) {
+    if (!isVerified || !(await checkIsAdmin(email))) {
       response.status(403).json({ error: "Not an approved admin" });
       return;
     }

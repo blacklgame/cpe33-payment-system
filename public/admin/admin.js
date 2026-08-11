@@ -90,7 +90,7 @@ signInBtn.addEventListener("click", async () => {
     // Nudges Google's account picker to show nu.ac.th accounts first.
     // This is a UX hint only, not a security boundary -- the real
     // check is isWhitelisted() below, plus the server-side check.
-    provider.setCustomParameters({ hd: "nu.ac.th" });
+    provider.setCustomParameters({ hd: "nu.ac.th", prompt: "select_account" });
 
     const result = await signInWithPopup(auth, provider);
 
