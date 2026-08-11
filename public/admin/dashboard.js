@@ -504,9 +504,16 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
   rowIndex.textContent = index;
   row.appendChild(rowIndex);
 
+  // Defensive: fall back to "unpaid" if studentStatus is an unknown value
+  // (e.g. "rejected" stored directly in Firestore, or any future state not
+  // yet added to STATUS_META). Without this, STATUS_META[unknownKey] returns
+  // undefined and the very next .pillClass access throws a runtime error that
+  // breaks the entire row and stops the rest of the list from rendering.
+  const resolvedStatus = STATUS_META[studentStatus] ? studentStatus : "unpaid";
+
   const card = document.createElement("div");
   card.className = "user-card";
-  applyCardStatusClass(card, studentStatus);
+  applyCardStatusClass(card, resolvedStatus);
   // Amber border overrides the normal status color while a slip is
   // awaiting approval, so it stands out in the list regardless of
   // studentStatus (usually still "unpaid" at this point, since paid
@@ -519,13 +526,13 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
   // it and choose one of the three states -- picking a new value
   // saves it via the server (see handleStatusChange).
   const statusSelect = document.createElement("select");
-  statusSelect.className = `status-pill ${STATUS_META[studentStatus].pillClass}`;
-  statusSelect.dataset.previousValue = studentStatus;
+  statusSelect.className = `status-pill ${STATUS_META[resolvedStatus].pillClass}`;
+  statusSelect.dataset.previousValue = resolvedStatus;
   Object.entries(STATUS_META).forEach(([value, meta]) => {
     const opt = document.createElement("option");
     opt.value = value;
     opt.textContent = meta.label;
-    if (value === studentStatus) opt.selected = true;
+    if (value === resolvedStatus) opt.selected = true;
     statusSelect.appendChild(opt);
   });
   statusSelect.addEventListener("change", () => {
