@@ -7,7 +7,8 @@
   <!-- Google Fonts: Inter & Noto Sans Thai -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+Thai:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,14 +24,15 @@
 
   <!-- Main Content -->
   <main>
-    <h1>Payment System</h1>
-    <p class="subtitle">Please Enter Your Nu ID</p>
+    <span class="eyebrow">Payment System</span>
+    <h1>Enter your Nu ID</h1>
+    <p class="subtitle">กรอกรหัสนิสิตเพื่อเข้าสู่ระบบ</p>
 
     <!-- Form Container -->
     <form class="form-container" id="loginForm" action="#" method="POST" autocomplete="off">
-      <input 
-        type="text" 
-        class="input-field" 
+      <input
+        type="text"
+        class="input-field"
         id="nuid"
         name="nuid"
         aria-label="Nu ID Input"

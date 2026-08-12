@@ -1,92 +1,25 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: 'Inter', 'Noto Sans Thai', sans-serif;
-}
+/* Stats page — layout only; shared tokens & header come from
+   ../theme.css. */
 
-body {
-  background-color: #0b1524;
-  color: #ffffff;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* Navbar */
-header {
-  width: 100%;
-  padding: 20px 40px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.badge {
-  background-color: #ffffff;
-  color: #000000;
-  font-weight: 700;
-  padding: 6px 16px;
-  border-radius: 20px;
-  font-size: 1.1rem;
-}
-
-.version {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #ffffff;
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 32px;
-}
-
-.nav-link {
-  color: #ffffff;
-  text-decoration: none;
-  font-size: 1.2rem;
-  font-weight: 400;
-}
-
-.nav-link:hover {
-  opacity: 0.8;
-}
-
-/* Main Content Container */
 main {
   width: 100%;
   max-width: 560px;
-  padding: 40px 20px 60px;
+  padding: 44px 20px 70px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 22px;
+  position: relative;
+  z-index: 1;
 }
 
 .page-title {
   text-align: center;
 }
 
-h1 {
-  font-size: 2.2rem;
-  font-weight: 700;
-}
-
 .page-subtitle {
   margin-top: 6px;
-  font-size: 1.05rem;
-  color: #9ba9bf;
-  font-weight: 400;
+  font-size: 1rem;
 }
 
 /* Main status card -- same visual language as the admin dashboard's
@@ -94,35 +27,36 @@ h1 {
    so "normal / termination / unpaid" always reads the same color
    everywhere in the app. */
 .status-card {
-  background-color: #1a2638;
+  background: var(--surface);
+  border: 1px solid var(--border);
   width: 100%;
-  border-radius: 28px;
-  border-left: 6px solid transparent;
-  padding: 28px 30px;
+  border-radius: var(--radius-lg);
+  border-left: 4px solid transparent;
+  padding: 30px 30px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   gap: 18px;
+  box-shadow: var(--shadow-card);
 }
 
 .status-card.card-normal {
-  border-left-color: #16a34a; /* Green */
+  border-left-color: var(--ok);
 }
 
 .status-card.card-termination {
-  border-left-color: #f97316; /* Orange */
+  border-left-color: var(--orange);
 }
 
 .status-card.card-unpaid {
-  border-left-color: #dc2626; /* Red */
+  border-left-color: var(--danger);
 }
 
 .status-card.card-pending {
-  border-left-color: #eab308; /* Amber -- distinct from unpaid's red, so a
-                                   submitted-but-unreviewed slip is easy to
-                                   spot at a glance and isn't confused with
-                                   "haven't paid at all". */
+  border-left-color: var(--warn); /* distinct from unpaid's red, so a
+    submitted-but-unreviewed slip is easy to spot at a glance and
+    isn't confused with "haven't paid at all". */
 }
 
 .status-card-top {
@@ -133,26 +67,31 @@ h1 {
 .status-pill {
   color: #ffffff;
   padding: 8px 22px;
-  border-radius: 30px;
-  font-size: 1rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.95rem;
   font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .status-pill.status-normal {
-  background-color: #16a34a;
+  background: var(--ok);
+  box-shadow: 0 8px 20px -8px rgba(34, 197, 94, 0.55);
 }
 
 .status-pill.status-termination {
-  background-color: #f97316;
+  background: var(--orange);
+  box-shadow: 0 8px 20px -8px rgba(251, 146, 60, 0.55);
 }
 
 .status-pill.status-unpaid {
-  background-color: #dc2626;
+  background: var(--danger);
+  box-shadow: 0 8px 20px -8px rgba(239, 68, 68, 0.55);
 }
 
 .status-pill.status-pending {
-  background-color: #eab308; /* Amber */
-  color: #1a1204; /* Dark text for contrast on the lighter amber pill */
+  background: var(--warn);
+  color: #201900; /* Dark text for contrast on the lighter amber pill */
+  box-shadow: 0 8px 20px -8px rgba(245, 179, 0, 0.55);
 }
 
 .profile-block {
@@ -162,17 +101,17 @@ h1 {
 }
 
 .avatar-placeholder {
-  width: 64px;
-  height: 64px;
-  background-color: #435e7d;
+  width: 60px;
+  height: 60px;
+  background: var(--accent-gradient);
   border-radius: 50%;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: #ffffff;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #0a0a0f;
   user-select: none;
 }
 
@@ -181,37 +120,40 @@ h1 {
 }
 
 .user-name {
-  font-size: 1.25rem;
-  font-weight: 400;
+  font-size: 1.15rem;
+  font-weight: 600;
   word-break: break-word;
 }
 
 .user-email {
-  font-size: 1rem;
-  color: #d1d5db;
-  font-weight: 300;
+  font-size: 0.98rem;
+  color: var(--text-dim);
+  font-weight: 400;
   word-break: break-word;
 }
 
 .status-note {
-  font-size: 0.95rem;
-  color: #9ba9bf;
+  font-size: 0.92rem;
+  color: var(--text-dim);
   line-height: 1.5;
 }
 
 .slip-link {
   display: none;
   padding: 10px 24px;
-  border-radius: 30px;
-  background-color: rgba(96, 165, 250, 0.15);
-  font-size: 0.95rem;
+  border-radius: var(--radius-pill);
+  background: rgba(139, 123, 255, 0.14);
+  border: 1px solid rgba(139, 123, 255, 0.3);
+  font-size: 0.92rem;
   font-weight: 600;
-  color: #60a5fa;
+  color: var(--accent);
   text-decoration: none;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
 }
 
 .slip-link:hover {
-  background-color: rgba(96, 165, 250, 0.25);
+  background: rgba(139, 123, 255, 0.24);
+  border-color: var(--accent);
 }
 
 .slip-link.show {
@@ -228,8 +170,9 @@ h1 {
 }
 
 .detail-tile {
-  background-color: #1a2638;
-  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 18px 12px;
   text-align: center;
   display: flex;
@@ -238,9 +181,9 @@ h1 {
 }
 
 .detail-label {
-  font-size: 0.8rem;
-  color: #9ba9bf;
-  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-weight: 500;
 }
 
 .detail-value {

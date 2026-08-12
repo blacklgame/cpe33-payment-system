@@ -1,0 +1,295 @@
+/* ============================================================
+   CPE33 — shared design tokens & base components
+   One dark system used by every page: login, logined, stats,
+   admin login, admin dashboard. Page-level stylesheets only add
+   layout that's specific to that page — colors, type, buttons,
+   inputs, and the header all come from here.
+   ============================================================ */
+
+:root {
+  /* Surfaces */
+  --bg: #08090d;
+  --bg-elevated: #0e1017;
+  --surface: #14161f;
+  --surface-2: #191c27;
+  --surface-hover: #1e212e;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Text */
+  --text: #f3f4f8;
+  --text-dim: #9aa1b4;
+  --text-faint: #656c80;
+
+  /* Brand accent — violet to cyan */
+  --accent: #8b7bff;
+  --accent-2: #22d3ee;
+  --accent-soft: rgba(139, 123, 255, 0.14);
+  --accent-gradient: linear-gradient(135deg, #8b7bff 0%, #6c5ce7 50%, #22d3ee 130%);
+
+  /* Semantic status colors */
+  --ok: #22c55e;
+  --ok-soft: rgba(34, 197, 94, 0.14);
+  --warn: #f5b300;
+  --warn-soft: rgba(245, 179, 0, 0.14);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.14);
+  --orange: #fb923c;
+  --orange-soft: rgba(251, 146, 60, 0.14);
+
+  /* Shape & motion */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 20px 40px -20px rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 12px 28px -10px rgba(0, 0, 0, 0.55);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: "Inter", "Noto Sans Thai", sans-serif;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ambient aurora glow — the one signature flourish, shared by every
+   page so the whole system feels like one continuous surface. Fixed
+   and behind everything, very low opacity, never intercepts clicks. */
+body::before {
+  content: "";
+  position: fixed;
+  top: -20%;
+  left: 50%;
+  translate: -50% 0;
+  width: min(1100px, 140vw);
+  height: 620px;
+  background:
+    radial-gradient(closest-side, rgba(139, 123, 255, 0.16), transparent 70%),
+    radial-gradient(closest-side at 70% 30%, rgba(34, 211, 238, 0.10), transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(10px);
+}
+
+::selection {
+  background: var(--accent);
+  color: #0a0a0f;
+}
+
+/* Scrollbar (webkit) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+a { color: inherit; }
+
+/* ---------------- Header ---------------- */
+header {
+  width: 100%;
+  padding: 18px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(8, 9, 13, 0.7);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.badge {
+  background: var(--accent-gradient);
+  color: #0a0a0f;
+  font-weight: 800;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 18px -6px rgba(139, 123, 255, 0.55);
+}
+
+.version {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
+.welcome-msg {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.nav-link {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.98rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s var(--ease);
+}
+
+.nav-link:hover {
+  color: var(--text);
+}
+
+/* ---------------- Typography ---------------- */
+h1 {
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+}
+
+.subtitle,
+.page-subtitle {
+  font-size: 1.05rem;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+/* ---------------- Buttons ---------------- */
+.btn-primary,
+.btn-enter,
+.btn-send,
+.btn-google {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 13px 26px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  color: #0a0a0f;
+  background: var(--accent-gradient);
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease), opacity 0.15s var(--ease);
+  box-shadow: var(--shadow-pop);
+}
+
+.btn-primary:hover:not(:disabled),
+.btn-enter:hover:not(:disabled),
+.btn-send:hover:not(:disabled),
+.btn-google:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px -10px rgba(139, 123, 255, 0.55);
+}
+
+.btn-primary:active:not(:disabled),
+.btn-enter:active:not(:disabled),
+.btn-send:active:not(:disabled),
+.btn-google:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled,
+.btn-enter:disabled,
+.btn-send:disabled,
+.btn-google:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  background: var(--surface-2);
+  color: var(--text-faint);
+}
+
+.btn-secondary,
+.btn-choose {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.1s var(--ease);
+  white-space: nowrap;
+}
+
+.btn-secondary:hover,
+.btn-choose:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.btn-secondary:active,
+.btn-choose:active {
+  transform: scale(0.98);
+}
+
+/* ---------------- Inputs ---------------- */
+.input-field {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 15px 24px;
+  font-size: 1.05rem;
+  color: var(--text);
+  outline: none;
+  text-align: center;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease), background 0.15s var(--ease);
+}
+
+.input-field::placeholder {
+  color: var(--text-faint);
+}
+
+.input-field:focus {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.error-text {
+  color: #ff8080;
+  font-size: 0.92rem;
+  min-height: 1.2em;
+}
+
+/* ---------------- Cards ---------------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  width: 100%;
+  border-radius: var(--radius-lg);
+  padding: 26px;
+  box-shadow: var(--shadow-card);
+}

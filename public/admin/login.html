@@ -7,177 +7,10 @@
   <!-- Google Fonts: Inter & Noto Sans Thai -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+Thai:wght@300;400;600;700&display=swap" rel="stylesheet">
-  
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: 'Inter', 'Noto Sans Thai', sans-serif;
-    }
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    body {
-      background-color: #0b1524;
-      color: #ffffff;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    /* Navbar */
-    header {
-      width: 100%;
-      padding: 20px 40px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .badge {
-      background-color: #ffffff;
-      color: #000000;
-      font-weight: 700;
-      padding: 6px 16px;
-      border-radius: 20px;
-      font-size: 1.1rem;
-    }
-
-    .version {
-      font-size: 1.2rem;
-      font-weight: 600;
-      color: #ffffff;
-    }
-
-    .nav-link {
-      color: #ffffff;
-      text-decoration: none;
-      font-size: 1.2rem;
-      font-weight: 400;
-    }
-
-    .nav-link:hover {
-      opacity: 0.8;
-    }
-
-    /* Main Content Container */
-    main {
-      width: 100%;
-      max-width: 500px;
-      padding: 80px 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-    }
-
-    h1 {
-      font-size: 2.2rem;
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-
-    .subtitle {
-      font-size: 1.2rem;
-      font-weight: 300;
-      color: #ffffff;
-      margin-bottom: 28px;
-    }
-
-    /* Google Sign-in Button */
-    .btn-google {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      width: 100%;
-      max-width: 360px;
-      background-color: #435e7d;
-      color: #ffffff;
-      border: none;
-      border-radius: 25px;
-      padding: 12px 24px;
-      font-size: 1.15rem;
-      font-weight: 500;
-      cursor: pointer;
-      text-decoration: none;
-      transition: background-color 0.2s ease, transform 0.1s ease;
-    }
-
-    .btn-google:hover {
-      background-color: #4d6b8e;
-    }
-
-    .btn-google:active {
-      transform: scale(0.98);
-    }
-
-    .btn-google:disabled {
-      opacity: 0.65;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .spinner {
-      width: 18px;
-      height: 18px;
-      border: 2px solid rgba(255, 255, 255, 0.35);
-      border-top-color: #ffffff;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    /* Google G Logo Badge Container */
-    .google-icon-wrapper {
-      width: 32px;
-      height: 32px;
-      background-color: #ffffff;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .google-icon-wrapper svg {
-      width: 18px;
-      height: 18px;
-    }
-    #errorText {
-      color: #ff6b6b;
-      margin-top: 20px;
-      font-size: 0.95rem;
-      line-height: 1.6;
-      text-align: left;
-      width: 100%;
-      max-width: 360px;
-    }
-
-    #errorText code {
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 4px;
-      padding: 2px 6px;
-      font-family: monospace;
-      font-size: 0.88rem;
-    }
-
-    #errorText small {
-      font-size: 0.82rem;
-      opacity: 0.75;
-    }
-  </style>
+  <link rel="stylesheet" href="../theme.css">
+  <link rel="stylesheet" href="login.css">
 </head>
 <body>
 
@@ -192,7 +25,8 @@
 
   <!-- Main Content -->
   <main>
-    <h1>Admin Page</h1>
+    <span class="eyebrow">Admin</span>
+    <h1>Admin sign in</h1>
     <p class="subtitle">Please sign in with your @nu.ac.th account</p>
 
     <!-- Sign-in Button -->

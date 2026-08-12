@@ -1,407 +1,306 @@
-* {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: 'Inter', 'Noto Sans Thai', sans-serif;
-    }
+/* Logged-in / payment page — layout only; shared tokens, header,
+   buttons and .card base all come from ../theme.css. */
 
-    body {
-      background-color: #0b1524;
-      color: #ffffff;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
+main {
+  width: 100%;
+  max-width: 560px;
+  padding: 44px 20px 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  position: relative;
+  z-index: 1;
+}
 
-    header {
-      width: 100%;
-      padding: 20px 40px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    }
+h1 {
+  text-align: center;
+  margin-bottom: 4px;
+}
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
 
-    .badge {
-      background-color: #ffffff;
-      color: #000000;
-      font-weight: 700;
-      padding: 6px 16px;
-      border-radius: 20px;
-      font-size: 1.1rem;
-    }
+.avatar-placeholder {
+  width: 60px;
+  height: 60px;
+  background: var(--accent-gradient);
+  border-radius: 50%;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #0a0a0f;
+  user-select: none;
+}
 
-    .version {
-      font-size: 1.2rem;
-      font-weight: 600;
-      color: #ffffff;
-    }
+.user-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
 
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 32px;
-    }
+.user-email {
+  font-size: 1rem;
+  color: var(--text-dim);
+  font-weight: 400;
+}
 
-    .nav-link {
-      color: #ffffff;
-      text-decoration: none;
-      font-size: 1.2rem;
-      font-weight: 400;
-      cursor: pointer;
-    }
+/* Bank card — its own accent (kept green/teal, the color of "money
+   received"), distinct from the violet/cyan brand accent used
+   everywhere else, so it still reads as a bank card at a glance. */
+.bank-card {
+  background: linear-gradient(160deg, #0e2620 0%, #0a1512 100%);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 26px 30px;
+  text-align: left;
+}
 
-    .nav-link:hover {
-      opacity: 0.8;
-    }
+.bank-card::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 250px;
+  height: 250px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
 
-    main {
-      width: 100%;
-      max-width: 600px;
-      padding: 40px 20px 80px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 24px;
-    }
+.bank-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 14px;
+}
 
-    h1 {
-      font-size: 2.2rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
+.bank-logo-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
-    .card {
-      background-color: #1a2638;
-      width: 100%;
-      border-radius: 28px;
-      padding: 28px;
-    }
+.bank-logo-icon {
+  background: #10b981;
+  color: #06120d;
+  font-size: 0.68rem;
+  font-weight: 900;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+}
 
-    .profile-card {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-    }
+.bank-name-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #f1f5f9;
+}
 
-    .avatar-placeholder {
-      width: 64px;
-      height: 64px;
-      background-color: #435e7d;
-      border-radius: 50%;
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: #ffffff;
-      user-select: none;
-    }
+.bank-card-type {
+  font-size: 0.68rem;
+  color: #34d399;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+}
 
-    .user-name {
-      font-size: 1.3rem;
-      font-weight: 400;
-      margin-bottom: 4px;
-    }
+.bank-card-number-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-    .user-email {
-      font-size: 1.1rem;
-      color: #d1d5db;
-      font-weight: 300;
-    }
+.bank-number-label {
+  font-size: 0.72rem;
+  color: #6b8f82;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
 
-    .bank-card {
-      background: linear-gradient(135deg, #0c2d22 0%, #051410 100%);
-      border: 1px solid rgba(16, 185, 129, 0.2);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.05);
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      padding: 28px 32px;
-      text-align: left;
-    }
+.bank-number-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
-    /* Decorative bank card glowing corner */
-    .bank-card::after {
-      content: "";
-      position: absolute;
-      top: -50%;
-      right: -30%;
-      width: 250px;
-      height: 250px;
-      background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
-      pointer-events: none;
-    }
+.bank-number {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 1.5px;
+}
 
-    .bank-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding-bottom: 14px;
-    }
+.btn-copy {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
 
-    .bank-logo-area {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+.btn-copy:hover {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
 
-    .bank-logo-icon {
-      background-color: #10b981;
-      color: #ffffff;
-      font-size: 0.7rem;
-      font-weight: 900;
-      padding: 3px 8px;
-      border-radius: 6px;
-      letter-spacing: 0.5px;
-    }
+.btn-copy:active {
+  transform: scale(0.95);
+}
 
-    .bank-name-label {
-      font-size: 1.15rem;
-      font-weight: 600;
-      color: #f1f5f9;
-    }
+.copy-tooltip {
+  position: absolute;
+  bottom: 120%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: #0a0a0f;
+  color: #ffffff;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
 
-    .bank-card-type {
-      font-size: 0.7rem;
-      color: #10b981;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      background-color: rgba(16, 185, 129, 0.1);
-      padding: 4px 10px;
-      border-radius: 12px;
-    }
+.btn-copy:hover .copy-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
 
-    .bank-card-number-area {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
+.copy-tooltip.copied {
+  background: #10b981;
+  border-color: #10b981;
+}
 
-    .bank-number-label {
-      font-size: 0.75rem;
-      color: #64748b;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-    }
+.bank-card-holder-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-    .bank-number-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
+.bank-holder-label {
+  font-size: 0.72rem;
+  color: #6b8f82;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
 
-    .bank-number {
-      font-size: 1.7rem;
-      font-weight: 700;
-      color: #ffffff;
-      letter-spacing: 1.5px;
-    }
+.bank-holder-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  line-height: 1.5;
+}
 
-    .btn-copy {
-      background-color: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #94a3b8;
-      border-radius: 8px;
-      width: 36px;
-      height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      position: relative;
-      transition: all 0.2s ease;
-    }
+/* Upload card */
+.upload-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
-    .btn-copy:hover {
-      background-color: rgba(16, 185, 129, 0.15);
-      border-color: rgba(16, 185, 129, 0.3);
-      color: #10b981;
-    }
+.upload-card h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
 
-    .btn-copy:active {
-      transform: scale(0.95);
-    }
+.upload-card .hint {
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  font-weight: 400;
+  margin-top: -10px;
+}
 
-    .copy-tooltip {
-      position: absolute;
-      bottom: 120%;
-      left: 50%;
-      transform: translateX(-50%) translateY(4px);
-      background-color: #0b1524;
-      color: #ffffff;
-      font-size: 0.75rem;
-      padding: 4px 8px;
-      border-radius: 6px;
-      white-space: nowrap;
-      pointer-events: none;
-      opacity: 0;
-      transition: all 0.2s ease;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-      border: 1px solid rgba(255,255,255,0.08);
-    }
+.file-input {
+  display: none;
+}
 
-    .btn-copy:hover .copy-tooltip {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
 
-    .copy-tooltip.copied {
-      background-color: #10b981;
-      border-color: #10b981;
-    }
+.file-name {
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  font-weight: 400;
+  word-break: break-all;
+  flex: 1;
+  min-width: 120px;
+}
 
-    .bank-card-holder-area {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
+.preview-wrap {
+  display: none;
+  justify-content: center;
+  padding: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
 
-    .bank-holder-label {
-      font-size: 0.75rem;
-      color: #64748b;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-    }
+.preview-wrap.show {
+  display: flex;
+}
 
-    .bank-holder-name {
-      font-size: 1.15rem;
-      font-weight: 600;
-      color: #f1f5f9;
-      line-height: 1.5;
-    }
+.preview-img {
+  max-width: 100%;
+  max-height: 280px;
+  border-radius: 14px;
+  object-fit: contain;
+}
 
-    /* Upload Card */
-    .upload-card {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
+.btn-send {
+  align-self: center;
+  width: 60%;
+  min-width: 180px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: #06120d;
+  box-shadow: 0 12px 28px -10px rgba(34, 197, 94, 0.5);
+}
 
-    .upload-card h2 {
-      font-size: 1.25rem;
-      font-weight: 600;
-    }
+.btn-send:hover:not(:disabled) {
+  box-shadow: 0 16px 34px -10px rgba(34, 197, 94, 0.6);
+}
 
-    .upload-card .hint {
-      font-size: 0.95rem;
-      color: #9ca3af;
-      font-weight: 300;
-      margin-top: -10px;
-    }
+.status-text {
+  text-align: center;
+  font-size: 0.92rem;
+  min-height: 1.2em;
+}
 
-    .file-input {
-      display: none;
-    }
+.status-text.success {
+  color: #4ade80;
+}
 
-    .upload-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
-
-    .btn-choose {
-      background-color: #435e7d;
-      color: #ffffff;
-      border: none;
-      border-radius: 25px;
-      padding: 12px 26px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s ease, transform 0.1s ease;
-      white-space: nowrap;
-    }
-
-    .btn-choose:hover {
-      background-color: #4d6b8e;
-    }
-
-    .btn-choose:active {
-      transform: scale(0.98);
-    }
-
-    .file-name {
-      font-size: 0.95rem;
-      color: #d1d5db;
-      font-weight: 300;
-      word-break: break-all;
-      flex: 1;
-      min-width: 120px;
-    }
-
-    .preview-wrap {
-      display: none;
-      justify-content: center;
-      padding: 12px;
-      background-color: #0b1524;
-      border-radius: 20px;
-    }
-
-    .preview-wrap.show {
-      display: flex;
-    }
-
-    .preview-img {
-      max-width: 100%;
-      max-height: 280px;
-      border-radius: 14px;
-      object-fit: contain;
-    }
-
-    .btn-send {
-      align-self: center;
-      width: 60%;
-      min-width: 180px;
-      background-color: #16a34a;
-      color: #ffffff;
-      border: none;
-      border-radius: 25px;
-      padding: 14px 24px;
-      font-size: 1.2rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s ease, transform 0.1s ease;
-    }
-
-    .btn-send:hover:not(:disabled) {
-      background-color: #15803d;
-    }
-
-    .btn-send:active:not(:disabled) {
-      transform: scale(0.98);
-    }
-
-    .btn-send:disabled {
-      background-color: #2d3b4d;
-      color: #7a8699;
-      cursor: not-allowed;
-    }
-
-    .status-text {
-      text-align: center;
-      font-size: 0.95rem;
-      min-height: 1.2em;
-    }
-
-    .status-text.success {
-      color: #4ade80;
-    }
-
-    .status-text.error {
-      color: #f87171;
-    }
+.status-text.error {
+  color: #f87171;
+}
