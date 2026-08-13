@@ -1,0 +1,157 @@
+/* event-detail.css — extra styles for the event detail page */
+
+/* Page-level overrides */
+main {
+  max-width: 860px;
+}
+
+/* Back link */
+.back-link {
+  align-self: flex-start;
+  font-size: 0.88rem;
+  color: var(--text-faint);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s var(--ease);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.back-link:hover {
+  color: var(--accent);
+}
+
+/* Event title row */
+.event-title-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.event-detail-emoji {
+  font-size: 3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Transaction list container */
+.tx-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Transaction row card */
+.tx-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--shadow-card);
+  border-left: 4px solid transparent;
+  transition: border-color 0.15s var(--ease), transform 0.15s var(--ease);
+}
+
+.tx-card:hover {
+  transform: translateX(2px);
+}
+
+.tx-card.tx-income  { border-left-color: var(--ok);     }
+.tx-card.tx-expense { border-left-color: var(--danger);  }
+
+/* Type icon pill */
+.tx-type-pill {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.tx-income  .tx-type-pill { background: var(--ok-soft);    color: var(--ok);    }
+.tx-expense .tx-type-pill { background: var(--danger-soft); color: var(--danger); }
+
+/* Main text */
+.tx-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tx-label {
+  font-size: 0.98rem;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.tx-meta {
+  font-size: 0.80rem;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+/* Amount */
+.tx-amount-col {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.tx-amount {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.tx-income  .tx-amount { color: var(--ok);    }
+.tx-expense .tx-amount { color: var(--danger); }
+
+.tx-unit-price {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+
+/* Action buttons */
+.tx-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Empty state */
+.tx-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-faint);
+}
+
+.tx-empty .empty-icon {
+  font-size: 2.8rem;
+  margin-bottom: 12px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .tx-card {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .tx-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .event-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

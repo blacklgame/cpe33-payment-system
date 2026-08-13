@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คลังเงินกิจกรรม — CPE33</title>
+  <meta name="description" content="ดูรายรับ-รายจ่ายของแต่ละกิจกรรม CPE33">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../theme.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="events-member.css">
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span class="badge">CPE</span>
+      <span class="version">33</span>
+    </div>
+    <nav class="nav-links">
+      <a href="./index.html"         class="nav-link">หน้าหลัก</a>
+      <a href="../stats/index.html"  class="nav-link">Stats</a>
+      <a href="./events.html"        class="nav-link nav-link-active-member">กิจกรรม</a>
+      <a href="#" class="nav-link" id="logoutLink">ออกจากระบบ</a>
+    </nav>
+  </header>
+
+  <main id="mainContent" style="display:none;">
+    <h1>💰 คลังเงินกิจกรรม</h1>
+    <p class="page-subtitle" style="margin-bottom:8px;">รายรับ-รายจ่ายของกิจกรรมที่ CPE33 จัดขึ้น</p>
+
+    <p id="loadingText" style="opacity:0.7;">กำลังโหลดข้อมูล...</p>
+
+    <!-- Grand total strip -->
+    <div class="donut-strip-member" id="donutStrip" style="display:none;">
+      <div class="donut-card-member card-income-m">
+        <div class="donut-svg-wrap-m">
+          <svg viewBox="0 0 42 42">
+            <circle class="donut-bg-m" cx="21" cy="21" r="15.915"/>
+            <circle class="donut-fg-m fg-income" cx="21" cy="21" r="15.915"
+                    id="donutFgIncome" stroke-dasharray="0 100" stroke-dashoffset="0"/>
+          </svg>
+          <div class="donut-center-m">
+            <span class="donut-pct-m income-c" id="donutPctIncome">0%</span>
+          </div>
+        </div>
+        <div>
+          <div class="donut-label-m">รายรับทั้งหมด</div>
+          <div class="donut-amount-m income-c" id="grandIncome">฿ 0.00</div>
+        </div>
+      </div>
+
+      <div class="donut-card-member card-expense-m">
+        <div class="donut-svg-wrap-m">
+          <svg viewBox="0 0 42 42">
+            <circle class="donut-bg-m" cx="21" cy="21" r="15.915"/>
+            <circle class="donut-fg-m fg-expense" cx="21" cy="21" r="15.915"
+                    id="donutFgExpense" stroke-dasharray="0 100" stroke-dashoffset="0"/>
+          </svg>
+          <div class="donut-center-m">
+            <span class="donut-pct-m expense-c" id="donutPctExpense">0%</span>
+          </div>
+        </div>
+        <div>
+          <div class="donut-label-m">รายจ่ายทั้งหมด</div>
+          <div class="donut-amount-m expense-c" id="grandExpense">฿ 0.00</div>
+        </div>
+      </div>
+
+      <div class="donut-card-member card-balance-m">
+        <div class="donut-svg-wrap-m">
+          <svg viewBox="0 0 42 42">
+            <circle class="donut-bg-m" cx="21" cy="21" r="15.915"/>
+            <circle class="donut-fg-m fg-balance" cx="21" cy="21" r="15.915"
+                    id="donutFgBalance" stroke-dasharray="0 100" stroke-dashoffset="0"/>
+          </svg>
+          <div class="donut-center-m">
+            <span class="donut-pct-m balance-c" id="donutPctBalance">0%</span>
+          </div>
+        </div>
+        <div>
+          <div class="donut-label-m">จำนวนเงินตอนนี้</div>
+          <div class="donut-amount-m balance-c" id="grandBalance">฿ 0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Events accordion list -->
+    <div id="eventsContainer" style="display:none; width:100%; display:flex; flex-direction:column; gap:16px;"></div>
+  </main>
+
+  <script type="module" src="events-member.js"></script>
+</body>
+</html>

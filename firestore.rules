@@ -82,5 +82,22 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if false;
     }
+
+    // Events and transactions (accessed exclusively via serverless APIs using Admin SDK)
+    match /events/{eventId} {
+      allow read: if false;
+      allow write: if false;
+
+      match /transactions/{txId} {
+        allow read: if false;
+        allow write: if false;
+      }
+    }
+
+    // Audit logs (written exclusively via serverless APIs using Admin SDK)
+    match /auditLog/{logId} {
+      allow read: if false;
+      allow write: if false;
+    }
   }
 }

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คลังเงินกิจกรรม — CPE33</title>
+  <meta name="description" content="จัดการรายรับ-รายจ่ายของแต่ละกิจกรรม CPE33">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../theme.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="events.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header>
+    <div class="brand">
+      <span class="badge">CPE</span>
+      <span class="version">33</span>
+    </div>
+    <div class="welcome-msg" id="welcomeMsg">Welcome</div>
+    <nav class="nav-links">
+      <a href="../index.html"      class="nav-link">หน้าหลัก</a>
+      <a href="./dashboard.html"  class="nav-link">รายชื่อนิสิต</a>
+      <a href="./months.html"     class="nav-link">รายเดือน</a>
+      <a href="./events.html"     class="nav-link nav-link-active">กิจกรรม</a>
+      <a href="#" class="nav-link" id="logoutLink">ออกจากระบบ</a>
+    </nav>
+  </header>
+
+  <main id="mainContent" style="display:none;">
+    <h1>💰 คลังเงินกิจกรรม</h1>
+    <p class="page-subtitle">ติดตามรายรับ-รายจ่ายของแต่ละกิจกรรมที่ CPE33 จัดขึ้น</p>
+
+    <p id="loadingText" style="opacity:0.7;">กำลังโหลดข้อมูล...</p>
+
+    <!-- ── Grand-total donut strip ── -->
+    <div class="donut-strip" id="donutStrip" style="display:none;">
+
+      <!-- รายรับทั้งหมด -->
+      <div class="donut-card card-income">
+        <div class="donut-svg-wrap">
+          <svg viewBox="0 0 42 42" id="donutSvgIncome">
+            <circle class="donut-bg" cx="21" cy="21" r="15.915"/>
+            <circle class="donut-fg" cx="21" cy="21" r="15.915"
+                    id="donutFgIncome"
+                    stroke-dasharray="0 100"
+                    stroke-dashoffset="0"/>
+          </svg>
+          <div class="donut-center">
+            <span class="donut-pct" id="donutPctIncome">0%</span>
+            <span class="donut-sub">ของรวม</span>
+          </div>
+        </div>
+        <div class="donut-label">รายรับทั้งหมด</div>
+        <div class="donut-amount" id="grandIncome">฿ 0.00</div>
+        <div class="donut-count" id="grandIncomeCount">0 รายการ</div>
+      </div>
+
+      <!-- รายจ่ายทั้งหมด -->
+      <div class="donut-card card-expense">
+        <div class="donut-svg-wrap">
+          <svg viewBox="0 0 42 42" id="donutSvgExpense">
+            <circle class="donut-bg" cx="21" cy="21" r="15.915"/>
+            <circle class="donut-fg" cx="21" cy="21" r="15.915"
+                    id="donutFgExpense"
+                    stroke-dasharray="0 100"
+                    stroke-dashoffset="0"/>
+          </svg>
+          <div class="donut-center">
+            <span class="donut-pct" id="donutPctExpense">0%</span>
+            <span class="donut-sub">ของรวม</span>
+          </div>
+        </div>
+        <div class="donut-label">รายจ่ายทั้งหมด</div>
+        <div class="donut-amount" id="grandExpense">฿ 0.00</div>
+        <div class="donut-count" id="grandExpenseCount">0 รายการ</div>
+      </div>
+
+      <!-- จำนวนเงินตอนนี้ -->
+      <div class="donut-card card-balance">
+        <div class="donut-svg-wrap">
+          <svg viewBox="0 0 42 42" id="donutSvgBalance">
+            <circle class="donut-bg" cx="21" cy="21" r="15.915"/>
+            <circle class="donut-fg" cx="21" cy="21" r="15.915"
+                    id="donutFgBalance"
+                    stroke-dasharray="0 100"
+                    stroke-dashoffset="0"/>
+          </svg>
+          <div class="donut-center">
+            <span class="donut-pct" id="donutPctBalance">0%</span>
+            <span class="donut-sub">คงเหลือ</span>
+          </div>
+        </div>
+        <div class="donut-label">จำนวนเงินตอนนี้</div>
+        <div class="donut-amount" id="grandBalance">฿ 0.00</div>
+        <div class="donut-count" id="grandBalanceCount">0 กิจกรรม</div>
+      </div>
+
+    </div>
+
+    <!-- ── Event list section ── -->
+    <div class="section-header" id="sectionHeader" style="display:none;">
+      <span class="section-title">กิจกรรมทั้งหมด</span>
+      <button class="btn-primary" id="createEventBtn" style="padding:11px 22px;font-size:0.95rem;">
+        + สร้างกิจกรรมใหม่
+      </button>
+    </div>
+
+    <div class="events-grid" id="eventsGrid"></div>
+
+  </main>
+
+  <!-- ── Modal: Create / Edit Event ── -->
+  <div class="modal-overlay" id="eventModal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+    <div class="modal">
+      <div class="modal-title" id="eventModalTitle">สร้างกิจกรรมใหม่</div>
+      <div class="modal-fields">
+        <label class="field-label">
+          ชื่อกิจกรรม (พิมพ์ emoji ในชื่อได้เลย)
+          <input type="text" id="eventNameInput" class="input-field"
+                 placeholder="เช่น ค่ายวิชาการ, งาน Open House 🎓" maxlength="100">
+        </label>
+        <label class="field-label">
+          Emoji ตัวแทนกิจกรรม
+          <input type="text" id="eventEmojiInput" class="input-field"
+                 placeholder="🎉" maxlength="8" style="font-size:1.5rem;text-align:center;">
+        </label>
+      </div>
+      <p class="modal-status" id="eventModalStatus"></p>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="eventModalCancel">ยกเลิก</button>
+        <button class="btn-primary" id="eventModalSave" style="font-size:0.95rem;padding:11px 24px;">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="events.js"></script>
+</body>
+</html>

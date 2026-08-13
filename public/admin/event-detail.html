@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>รายละเอียดกิจกรรม — CPE33</title>
+  <meta name="description" content="รายการรายรับ-รายจ่ายของกิจกรรม CPE33">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../theme.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="events.css">
+  <link rel="stylesheet" href="event-detail.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header>
+    <div class="brand">
+      <span class="badge">CPE</span>
+      <span class="version">33</span>
+    </div>
+    <div class="welcome-msg" id="welcomeMsg">Welcome</div>
+    <nav class="nav-links">
+      <a href="../index.html"      class="nav-link">หน้าหลัก</a>
+      <a href="./dashboard.html"  class="nav-link">รายชื่อนิสิต</a>
+      <a href="./months.html"     class="nav-link">รายเดือน</a>
+      <a href="./events.html"     class="nav-link nav-link-active">กิจกรรม</a>
+      <a href="#" class="nav-link" id="logoutLink">ออกจากระบบ</a>
+    </nav>
+  </header>
+
+  <main id="mainContent" style="display:none;">
+
+    <!-- Back link -->
+    <a href="./events.html" class="back-link" id="backLink">← กลับไปหน้ากิจกรรม</a>
+
+    <!-- Event title area -->
+    <div class="event-title-row">
+      <span class="event-detail-emoji" id="detailEmoji">🎉</span>
+      <div>
+        <h1 id="detailName">กิจกรรม</h1>
+        <p class="page-subtitle" id="detailSubtitle">สร้างโดย — </p>
+      </div>
+    </div>
+
+    <p id="loadingText" style="opacity:0.7;">กำลังโหลดข้อมูล...</p>
+
+    <!-- ── 3 donut cards ── -->
+    <div class="donut-strip" id="donutStrip" style="display:none;">
+
+      <div class="donut-card card-income">
+        <div class="donut-svg-wrap">
+          <svg viewBox="0 0 42 42">
+            <circle class="donut-bg" cx="21" cy="21" r="15.915"/>
+            <circle class="donut-fg" cx="21" cy="21" r="15.915"
+                    id="donutFgIncome" stroke-dasharray="0 100" stroke-dashoffset="0"/>
+          </svg>
+          <div class="donut-center">
+            <span class="donut-pct" id="donutPctIncome">0%</span>
+            <span class="donut-sub">ของรวม</span>
+          </div>
+        </div>
+        <div class="donut-label">รายรับทั้งหมด</div>
+        <div class="donut-amount" id="totalIncome">฿ 0.00</div>
+        <div class="donut-count" id="incomeCount">0 รายการ</div>
+      </div>
+
+      <div class="donut-card card-expense">
+        <div class="donut-svg-wrap">
+          <svg viewBox="0 0 42 42">
+            <circle class="donut-bg" cx="21" cy="21" r="15.915"/>
+            <circle class="donut-fg" cx="21" cy="21" r="15.915"
+                    id="donutFgExpense" stroke-dasharray="0 100" stroke-dashoffset="0"/>
+          </svg>
+          <div class="donut-center">
+            <span class="donut-pct" id="donutPctExpense">0%</span>
+            <span class="donut-sub">ของรวม</span>
+          </div>
+        </div>
+        <div class="donut-label">รายจ่ายทั้งหมด</div>
+        <div class="donut-amount" id="totalExpense">฿ 0.00</div>
+        <div class="donut-count" id="expenseCount">0 รายการ</div>
+      </div>
+
+      <div class="donut-card card-balance">
+        <div class="donut-svg-wrap">
+          <svg viewBox="0 0 42 42">
+            <circle class="donut-bg" cx="21" cy="21" r="15.915"/>
+            <circle class="donut-fg" cx="21" cy="21" r="15.915"
+                    id="donutFgBalance" stroke-dasharray="0 100" stroke-dashoffset="0"/>
+          </svg>
+          <div class="donut-center">
+            <span class="donut-pct" id="donutPctBalance">0%</span>
+            <span class="donut-sub">คงเหลือ</span>
+          </div>
+        </div>
+        <div class="donut-label">จำนวนเงินตอนนี้</div>
+        <div class="donut-amount" id="totalBalance">฿ 0.00</div>
+        <div class="donut-count" id="totalCount">0 รายการ</div>
+      </div>
+
+    </div>
+
+    <!-- ── Transaction list section ── -->
+    <div class="section-header" id="txSectionHeader" style="display:none;">
+      <span class="section-title">รายการทั้งหมด</span>
+      <button class="btn-primary" id="addTxBtn" style="padding:11px 22px;font-size:0.95rem;">
+        + เพิ่มรายการ
+      </button>
+    </div>
+
+    <div id="txContainer" class="tx-container"></div>
+
+  </main>
+
+  <!-- ── Modal: Add / Edit Transaction ── -->
+  <div class="modal-overlay" id="txModal" role="dialog" aria-modal="true" aria-labelledby="txModalTitle">
+    <div class="modal">
+      <div class="modal-title" id="txModalTitle">เพิ่มรายการ</div>
+
+      <div class="modal-fields">
+        <!-- Income / Expense toggle -->
+        <label class="field-label">ประเภท</label>
+        <div class="type-toggle">
+          <button class="type-btn active-income" id="typeIncome" data-type="income">+ รายรับ</button>
+          <button class="type-btn" id="typeExpense" data-type="expense">− รายจ่าย</button>
+        </div>
+
+        <label class="field-label">
+          ชื่อรายการ (ใส่ emoji ได้เลย 🎯)
+          <input type="text" id="txLabel" class="input-field"
+                 placeholder="เช่น น้ำ 💧, ค่าสถานที่ 🏛️" maxlength="100">
+        </label>
+
+        <label class="field-label">
+          ราคาต่อหน่วย (บาท)
+          <input type="number" id="txAmount" class="input-field"
+                 placeholder="0" min="0.01" step="0.01">
+        </label>
+
+        <label class="field-label">
+          จำนวน
+          <input type="number" id="txQty" class="input-field"
+                 placeholder="1" min="1" step="1" value="1">
+        </label>
+
+        <div class="amount-preview" id="amountPreview"></div>
+
+        <label class="field-label">
+          หมายเหตุ (ไม่บังคับ)
+          <input type="text" id="txNote" class="input-field"
+                 placeholder="รายละเอียดเพิ่มเติม..." maxlength="300">
+        </label>
+      </div>
+
+      <p class="modal-status" id="txModalStatus"></p>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="txModalCancel">ยกเลิก</button>
+        <button class="btn-primary" id="txModalSave" style="font-size:0.95rem;padding:11px 24px;">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="event-detail.js"></script>
+</body>
+</html>

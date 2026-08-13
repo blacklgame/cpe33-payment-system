@@ -1,0 +1,454 @@
+/* events.css — Admin Events (คลังเงินกิจกรรม) page styles
+   Builds on top of theme.css + dashboard.css                */
+
+/* ── Page-level overrides ── */
+main {
+  max-width: 1100px;
+}
+
+/* ── Grand-Total Donut Strip ──────────────────────────────── */
+.donut-strip {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.donut-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.donut-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+
+/* Subtle glow behind each card (color set inline via CSS var) */
+.donut-card::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: 50%;
+  translate: -50% 0;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: var(--card-glow, rgba(139, 123, 255, 0.1));
+  filter: blur(28px);
+  pointer-events: none;
+}
+
+.donut-card.card-income  { --card-glow: rgba(34, 197, 94,  0.12); }
+.donut-card.card-expense { --card-glow: rgba(239, 68, 68,  0.12); }
+.donut-card.card-balance { --card-glow: rgba(34, 211, 238, 0.12); }
+
+/* SVG donut wrapper */
+.donut-svg-wrap {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  flex-shrink: 0;
+}
+
+.donut-svg-wrap svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.donut-bg {
+  fill: none;
+  stroke: var(--surface-2);
+  stroke-width: 14;
+}
+
+.donut-fg {
+  fill: none;
+  stroke-width: 14;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.8s var(--ease);
+}
+
+.donut-card.card-income  .donut-fg { stroke: var(--ok);      }
+.donut-card.card-expense .donut-fg { stroke: var(--danger);  }
+.donut-card.card-balance .donut-fg { stroke: var(--accent-2); }
+
+/* Centre label inside donut */
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.donut-pct {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.donut-card.card-income  .donut-pct { color: var(--ok);      }
+.donut-card.card-expense .donut-pct { color: var(--danger);  }
+.donut-card.card-balance .donut-pct { color: var(--accent-2); }
+
+.donut-sub {
+  font-size: 0.68rem;
+  color: var(--text-faint);
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+/* Text below donut */
+.donut-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.donut-amount {
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-top: -6px;
+}
+
+.donut-card.card-income  .donut-amount { color: var(--ok);      }
+.donut-card.card-expense .donut-amount { color: var(--danger);  }
+.donut-card.card-balance .donut-amount { color: var(--accent-2); }
+
+.donut-count {
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  margin-top: -4px;
+}
+
+/* ── Section header row ───────────────────────────────────── */
+.section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+/* ── Event Cards Grid ─────────────────────────────────────── */
+.events-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+.event-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  position: relative;
+  overflow: hidden;
+}
+
+.event-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-3px);
+  box-shadow: 0 20px 40px -16px rgba(139, 123, 255, 0.3);
+}
+
+.event-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.event-emoji-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.event-emoji {
+  font-size: 2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.event-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.event-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 5px 9px;
+  transition: color 0.15s var(--ease), border-color 0.15s var(--ease), background 0.15s var(--ease);
+  font-family: inherit;
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.icon-btn.icon-btn-danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* Mini balance pills on each event card */
+.event-card-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+}
+
+.pill-income  { background: var(--ok-soft);     color: var(--ok);     }
+.pill-expense { background: var(--danger-soft);  color: var(--danger); }
+.pill-balance { background: var(--accent-soft);  color: var(--accent); }
+
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pill-income  .pill-dot { background: var(--ok);     }
+.pill-expense .pill-dot { background: var(--danger);  }
+.pill-balance .pill-dot { background: var(--accent);  }
+
+.event-card-footer {
+  font-size: 0.79rem;
+  color: var(--text-faint);
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+/* Empty state */
+.empty-state {
+  width: 100%;
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-faint);
+  font-size: 0.95rem;
+}
+
+.empty-state .empty-icon {
+  font-size: 3rem;
+  margin-bottom: 14px;
+}
+
+/* ── Modal ────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s var(--ease);
+}
+
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 32px 30px 28px;
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.7);
+  transform: scale(0.95) translateY(8px);
+  transition: transform 0.25s var(--ease);
+}
+
+.modal-overlay.open .modal {
+  transform: scale(1) translateY(0);
+}
+
+.modal-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.modal-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.field-label .input-field {
+  text-align: left;
+}
+
+/* Type toggle (รายรับ / รายจ่าย) */
+.type-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.type-btn {
+  padding: 11px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+}
+
+.type-btn.active-income {
+  border-color: var(--ok);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.type-btn.active-expense {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 10px 22px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s var(--ease);
+}
+
+.btn-cancel:hover { background: var(--surface-hover); }
+
+.modal-status {
+  font-size: 0.88rem;
+  min-height: 1.2em;
+  color: var(--danger);
+}
+
+/* Qty × price preview */
+.amount-preview {
+  font-size: 0.82rem;
+  color: var(--accent-2);
+  font-weight: 600;
+  min-height: 1em;
+  margin-top: -8px;
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .donut-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .donut-card {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 18px 20px;
+    gap: 18px;
+  }
+
+  .donut-card::before { display: none; }
+
+  .donut-svg-wrap {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+  }
+
+  .donut-amount { font-size: 1.2rem; }
+
+  .events-grid {
+    grid-template-columns: 1fr;
+  }
+}
