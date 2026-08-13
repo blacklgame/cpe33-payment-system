@@ -2,101 +2,32 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Roster of students (Nu ID -> name/email/stat).
-    // No client page reads this collection anymore -- the login page
-    // uses the roster bundled into public/user.js, and every server
-    // endpoint that needs the roster (submit-slip.js, mint-session.js,
-    // api/admin/*) uses the Admin SDK, which bypasses these rules
-    // entirely. So this can be fully locked down, both read and
-    // write, from every client session (previously `allow read: if
-    // true` let anyone dump every student's name/email/Nu ID via the
-    // Firestore REST API directly, with no login at all).
-    match /users/{nuid} {
-      allow read: if false;
-      allow write: if false;
+    // Default deny for anything not explicitly matched
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    // Whitelist of admin emails.
-    // Locked down completely from the client -- only read/written via Admin SDK.
-    match /admins/{email} {
-      allow read: if false;
-      allow write: if false;
-    }
+    // Completely locked down from client (Admin SDK only)
+    match /users/{document=**} { allow read, write: if false; }
+    match /admins/{document=**} { allow read, write: if false; }
+    match /events/{document=**} { allow read, write: if false; }
+    match /auditLog/{document=**} { allow read, write: if false; }
 
-
-    // Payment status + slip metadata, keyed by Nu ID.
-    // Previously `allow read: if true` -- same problem as above, but
-    // worse: this collection also holds each student's uploaded slip
-    // URL and review status, all publicly dumpable with no login.
-    //
-    // Now owner-only: a student can read payments/{nuid} only once
-    // their browser is signed in with a Firebase Auth session whose
-    // uid == nuid. That session comes from /api/mint-session (see
-    // that file, and public/auth-session.js) -- it confirms the Nu ID
-    // is on the roster, but does NOT verify the person typing it is
-    // really that student. It closes "readable with zero session at
-    // all" cheaply; it does not by itself stop someone who knows a
-    // classmate's Nu ID from reading that classmate's status. Real
-    // identity verification (Google SSO restricted to nu.ac.th, OTP,
-    // etc.) is a separate, bigger project than this rule change.
-    //
-    // Admins read this collection through api/admin/list-data.js
-    // (Admin SDK, bypasses these rules) instead of a direct client
-    // read, since an admin's uid will never equal every nuid.
-    //
-    // NOT writable from the client at all, from any session. Every
-    // write to this collection goes through Admin-SDK-only server
-    // endpoints that independently verify who's calling and what
-    // they're allowed to do:
-    //   - api/submit-slip.js        (students: always writes paid:false)
-    //   - api/admin/approve-slip.js (admins only: the ONLY path to paid:true)
-    //   - api/admin/set-status.js   (admins only)
-    //   - api/admin/delete-slip.js  (admins only)
+    // Owner-only payment data
     match /payments/{nuid} {
       allow read: if request.auth != null && request.auth.uid == nuid;
       allow write: if false;
 
-      // Per-month payment records (one billing period each, e.g.
-      // "2026-02"). Same owner-only read rule as the parent doc, for
-      // the same reason (a student's own stats/upload pages read
-      // these directly with the client SDK). NOT writable from the
-      // client at all -- every write goes through Admin-SDK-only
-      // server endpoints that independently verify who's calling:
-      //   - api/submit-slip.js        (students: always writes paid:false)
-      //   - api/admin/approve-slip.js (admins only: the ONLY path to paid:true)
-      //   - api/admin/delete-slip.js  (admins only)
+      // Per-student month detail checks
       match /months/{monthId} {
         allow read: if request.auth != null && request.auth.uid == nuid;
         allow write: if false;
       }
     }
 
-    // Billing periods an admin has created (year, month, amount due),
-    // e.g. months/2026-02 = { year: 2026, month: 2, amount: 80 }.
-    // Readable by any signed-in user -- both the admin dashboard and
-    // a student's own upload/stats pages need this list, and it
-    // holds nothing sensitive (no student data, just prices/dates).
-    // Only writable via api/admin/create-month.js / delete-month.js
-    // (Admin SDK, admin-whitelist-checked), never directly.
+    // Public billing metadata (Authenticated users only)
     match /months/{monthId} {
       allow read: if request.auth != null;
-      allow write: if false;
-    }
-
-    // Events and transactions (accessed exclusively via serverless APIs using Admin SDK)
-    match /events/{eventId} {
-      allow read: if false;
-      allow write: if false;
-
-      match /transactions/{txId} {
-        allow read: if false;
-        allow write: if false;
-      }
-    }
-
-    // Audit logs (written exclusively via serverless APIs using Admin SDK)
-    match /auditLog/{logId} {
-      allow read: if false;
       allow write: if false;
     }
   }
