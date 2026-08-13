@@ -119,7 +119,7 @@ async function loadEventDetail() {
   txContainer.innerHTML = "";
 
   try {
-    const data = await apiFetch(`/api/admin/events/get-transactions?eventId=${encodeURIComponent(eventId)}`);
+    const data = await apiFetch(`/api/admin/events-api?action=get-transactions&eventId=${encodeURIComponent(eventId)}`);
 
     if (data.error) { location.href = "./login.html"; return; }
 
@@ -312,17 +312,19 @@ txModalSave.addEventListener("click", async () => {
 
   try {
     if (editingTxId) {
-      await apiFetch("/api/admin/events/update-transaction", {
+      await apiFetch("/api/admin/events-api", {
         method: "PUT",
         body: JSON.stringify({
+          action: "update-transaction",
           eventId, txId: editingTxId,
           type: selectedType, label, amount, quantity: qty, note
         })
       });
     } else {
-      await apiFetch("/api/admin/events/add-transaction", {
+      await apiFetch("/api/admin/events-api", {
         method: "POST",
         body: JSON.stringify({
+          action: "add-transaction",
           eventId,
           type: selectedType, label, amount, quantity: qty, note
         })
@@ -347,9 +349,9 @@ txModal.addEventListener("click", (e) => {
 async function confirmDeleteTx(txId, label) {
   if (!confirm(`ลบรายการ "${label}" ?\n\nการลบไม่สามารถย้อนกลับได้`)) return;
   try {
-    await apiFetch("/api/admin/events/delete-transaction", {
+    await apiFetch("/api/admin/events-api", {
       method: "DELETE",
-      body: JSON.stringify({ eventId, txId })
+      body: JSON.stringify({ action: "delete-transaction", eventId, txId })
     });
     await loadEventDetail();
   } catch (err) {

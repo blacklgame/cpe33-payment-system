@@ -113,7 +113,7 @@ async function loadEvents() {
     donutStrip.style.display = "none";
     sectionHeader.style.display = "none";
 
-    const data = await apiFetch("/api/admin/events/list");
+    const data = await apiFetch("/api/admin/events-api?action=list");
 
     // Redirect to login on auth failure
     if (data.error) {
@@ -301,14 +301,14 @@ eventModalSave.addEventListener("click", async () => {
 
   try {
     if (editingEventId) {
-      await apiFetch("/api/admin/events/update", {
+      await apiFetch("/api/admin/events-api", {
         method: "PUT",
-        body: JSON.stringify({ eventId: editingEventId, name, emoji })
+        body: JSON.stringify({ action: "update", eventId: editingEventId, name, emoji })
       });
     } else {
-      await apiFetch("/api/admin/events/create", {
+      await apiFetch("/api/admin/events-api", {
         method: "POST",
-        body: JSON.stringify({ name, emoji })
+        body: JSON.stringify({ action: "create", name, emoji })
       });
     }
     closeModal(eventModal);
@@ -324,9 +324,9 @@ eventModalSave.addEventListener("click", async () => {
 async function confirmDeleteEvent(eventId, name) {
   if (!confirm(`ลบกิจกรรม "${name}" และรายการทั้งหมดในนั้น?\n\nการลบไม่สามารถย้อนกลับได้`)) return;
   try {
-    await apiFetch("/api/admin/events/delete", {
+    await apiFetch("/api/admin/events-api", {
       method: "DELETE",
-      body: JSON.stringify({ eventId })
+      body: JSON.stringify({ action: "delete", eventId })
     });
     await loadEvents();
   } catch (err) {
