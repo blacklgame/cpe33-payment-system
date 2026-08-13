@@ -74,3 +74,49 @@ module.exports = async function handler(request, response) {
     const [usersSnap, paymentsSnap, monthsSnap, monthlySnap] = await Promise.all([
       db.collection("users").get(),
       db.collection("payments").get(),
+      db.collection("months").get(),
+      db.collectionGroup("months").get()
+    ]);
+
+    const users = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    // Only send the fields the dashboard actually renders -- no need
+    // to ship raw Firestore Timestamps (approvedAt/rejectedAt/etc.)
+    // to the browser for a table it doesn't display them in.
+    const payments = paymentsSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        studentStatus: data.studentStatus || null
+      };
+    });
+
+    // Billing periods an admin has created, sorted newest-first so
+    // the dashboard's month picker defaults to the most recent one.
+    const months = monthsSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => b.id.localeCompare(a.id));
+
+    // Flatten collectionGroup('months') -- each doc's parent is
+    // payments/{nuid} -- into { [nuid]: { [monthId]: {...} } } so
+    // the dashboard can look up any student+month pair in O(1).
+    const monthlyPayments = {};
+    monthlySnap.docs.forEach((d) => {
+      const nuid = d.ref.parent.parent.id;
+      const data = d.data();
+      if (!monthlyPayments[nuid]) monthlyPayments[nuid] = {};
+      monthlyPayments[nuid][d.id] = {
+        paid: !!data.paid,
+        reviewStatus: data.reviewStatus || null,
+        slipUrl: data.slipUrl || null,
+        slipPublicId: data.slipPublicId || null,
+        amount: typeof data.amount === "number" ? data.amount : null
+      };
+    });
+
+    response.status(200).json({ users, payments, months, monthlyPayments });
+  } catch (err) {
+    console.error("Admin list-data failed:", err);
+    response.status(500).json({ error: "Internal server error" });
+  }
+};
