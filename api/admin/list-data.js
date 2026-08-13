@@ -102,6 +102,11 @@ module.exports = async function handler(request, response) {
     // the dashboard can look up any student+month pair in O(1).
     const monthlyPayments = {};
     monthlySnap.docs.forEach((d) => {
+      // collectionGroup('months') also matches the top-level `months`
+      // collection (billing periods). For those docs parent.parent is null
+      // because they live at /months/{id}, not /payments/{nuid}/months/{id}.
+      // Skip them here -- they are already captured in the `months` array above.
+      if (!d.ref.parent.parent) return;
       const nuid = d.ref.parent.parent.id;
       const data = d.data();
       if (!monthlyPayments[nuid]) monthlyPayments[nuid] = {};
