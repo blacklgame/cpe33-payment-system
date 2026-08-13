@@ -6,9 +6,10 @@ const { writeAuditLog } = require("../_lib/audit");
 /* ------------------------------------------------------------
    api/admin/events-api.js
    Consolidated Serverless Function for all Admin Event/Transaction CRUD
-   operations to comply with Vercel's Hobby Plan limit of 12 serverless functions.
+   operations, updated to implement Option A (Denormalized Totals).
 
-   Route actions are parsed from `req.query.action` or `req.body.action`.
+   All transaction mutations are executed inside Firestore transactions
+   to keep the event totals in sync.
 ------------------------------------------------------------ */
 
 if (!admin.apps.length) {
@@ -22,7 +23,7 @@ if (!admin.apps.length) {
 module.exports = async function handler(req, res) {
   try {
     // 1. Rate limiting
-    if (rateLimit(`events-api:${clientIp(req)}`, { limit: 100, windowMs: 60_000 }).limited) {
+    if (rateLimit(`events-api:${clientIp(req)}`, { limit: 120, windowMs: 60_000 }).limited) {
       res.status(429).json({ error: "Too many requests" });
       return;
     }
@@ -42,7 +43,6 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // Determine action
     const action = (req.query.action || req.body?.action || "").toLowerCase();
     const db = admin.firestore();
 
@@ -50,45 +50,24 @@ module.exports = async function handler(req, res) {
     // --- GET ACTIONS ---
     if (req.method === "GET") {
       if (action === "list") {
-        // --- List Events ---
+        // --- List Events (Option A: Fetch totals directly, no subcollection calls) ---
         const eventsSnap = await db.collection("events").orderBy("createdAt", "asc").get();
-        const events = await Promise.all(
-          eventsSnap.docs.map(async (doc) => {
-            const data = doc.data();
-            const txSnap = await db.collection("events").doc(doc.id).collection("transactions").get();
-
-            let totalIncome = 0;
-            let totalExpense = 0;
-            let transactions_income_count = 0;
-            let transactions_expense_count = 0;
-
-            txSnap.forEach((tx) => {
-              const t = tx.data();
-              const amt = (Number(t.amount) || 0) * (Number(t.quantity) || 1);
-              if (t.type === "income") {
-                totalIncome += amt;
-                transactions_income_count++;
-              } else if (t.type === "expense") {
-                totalExpense += amt;
-                transactions_expense_count++;
-              }
-            });
-
-            return {
-              id: doc.id,
-              name: data.name || "",
-              emoji: data.emoji || "🎉",
-              createdBy: data.createdBy || "",
-              createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
-              totalIncome,
-              totalExpense,
-              balance: totalIncome - totalExpense,
-              transactionCount: txSnap.size,
-              transactions_income_count,
-              transactions_expense_count
-            };
-          })
-        );
+        const events = eventsSnap.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name || "",
+            emoji: data.emoji || "🎉",
+            createdBy: data.createdBy || "",
+            createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
+            totalIncome: Number(data.totalIncome) || 0,
+            totalExpense: Number(data.totalExpense) || 0,
+            balance: (Number(data.totalIncome) || 0) - (Number(data.totalExpense) || 0),
+            transactionCount: Number(data.transactionCount) || 0,
+            transactions_income_count: Number(data.transactions_income_count) || 0,
+            transactions_expense_count: Number(data.transactions_expense_count) || 0
+          };
+        });
         res.status(200).json({ events });
         return;
       }
@@ -146,7 +125,7 @@ module.exports = async function handler(req, res) {
     // --- POST ACTIONS ---
     if (req.method === "POST") {
       if (action === "create") {
-        // --- Create Event ---
+        // --- Create Event (Initialize totals at 0) ---
         const { name, emoji } = req.body || {};
         if (!name || typeof name !== "string" || name.trim().length === 0) {
           res.status(400).json({ error: "Event name is required" });
@@ -160,6 +139,11 @@ module.exports = async function handler(req, res) {
         const ref = await db.collection("events").add({
           name: name.trim(),
           emoji: (typeof emoji === "string" ? emoji.trim() : "") || "🎉",
+          totalIncome: 0,
+          totalExpense: 0,
+          transactionCount: 0,
+          transactions_income_count: 0,
+          transactions_expense_count: 0,
           createdBy: email,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -171,7 +155,7 @@ module.exports = async function handler(req, res) {
       }
 
       if (action === "add-transaction") {
-        // --- Add Transaction ---
+        // --- Add Transaction (Uses Transaction to update Event totals) ---
         const { eventId, type, label, amount, quantity, note } = req.body || {};
         if (!eventId || typeof eventId !== "string") {
           res.status(400).json({ error: "eventId is required" }); return;
@@ -193,34 +177,65 @@ module.exports = async function handler(req, res) {
         const totalAmount = amountNum * quantityNum;
 
         const eventRef = db.collection("events").doc(eventId);
-        const snap = await eventRef.get();
-        if (!snap.exists) {
-          res.status(404).json({ error: "Event not found" }); return;
-        }
+        const newTxRef = eventRef.collection("transactions").doc();
 
-        const txRef = await eventRef.collection("transactions").add({
-          type,
-          label: label.trim(),
-          amount: amountNum,
-          quantity: quantityNum,
-          totalAmount,
-          note: typeof note === "string" ? note.trim().slice(0, 300) : "",
-          createdBy: email,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        let finalTotalAmount = totalAmount;
+
+        await db.runTransaction(async (transaction) => {
+          const eventSnap = await transaction.get(eventRef);
+          if (!eventSnap.exists) {
+            throw new Error("Event not found");
+          }
+
+          const eventData = eventSnap.data();
+          let totalIncome = Number(eventData.totalIncome) || 0;
+          let totalExpense = Number(eventData.totalExpense) || 0;
+          let transactionCount = Number(eventData.transactionCount) || 0;
+          let transactions_income_count = Number(eventData.transactions_income_count) || 0;
+          let transactions_expense_count = Number(eventData.transactions_expense_count) || 0;
+
+          if (type === "income") {
+            totalIncome += totalAmount;
+            transactions_income_count++;
+          } else {
+            totalExpense += totalAmount;
+            transactions_expense_count++;
+          }
+          transactionCount++;
+
+          transaction.set(newTxRef, {
+            type,
+            label: label.trim(),
+            amount: amountNum,
+            quantity: quantityNum,
+            totalAmount,
+            note: typeof note === "string" ? note.trim().slice(0, 300) : "",
+            createdBy: email,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          transaction.update(eventRef, {
+            totalIncome,
+            totalExpense,
+            transactionCount,
+            transactions_income_count,
+            transactions_expense_count,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
         });
 
         await writeAuditLog(db, "add_transaction", email, {
           eventId,
-          txId: txRef.id,
+          txId: newTxRef.id,
           type,
           label: label.trim(),
           amount: amountNum,
           quantity: quantityNum,
-          totalAmount
+          totalAmount: finalTotalAmount
         });
 
-        res.status(200).json({ ok: true, txId: txRef.id, totalAmount });
+        res.status(200).json({ ok: true, txId: newTxRef.id, totalAmount: finalTotalAmount });
         return;
       }
 
@@ -261,53 +276,82 @@ module.exports = async function handler(req, res) {
       }
 
       if (action === "update-transaction") {
-        // --- Update Transaction ---
+        // --- Update Transaction (Uses Transaction to re-calculate Event totals) ---
         const { eventId, txId, type, label, amount, quantity, note } = req.body || {};
         if (!eventId || !txId) {
           res.status(400).json({ error: "eventId and txId are required" }); return;
         }
 
-        const txRef = db.collection("events").doc(eventId).collection("transactions").doc(txId);
-        const snap = await txRef.get();
-        if (!snap.exists) {
-          res.status(404).json({ error: "Transaction not found" }); return;
-        }
+        const eventRef = db.collection("events").doc(eventId);
+        const txRef = eventRef.collection("transactions").doc(txId);
 
-        const current = snap.data();
-        const updates = {
-          updatedBy: email,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        };
+        let finalTotalAmount = 0;
 
-        if (type === "income" || type === "expense") updates.type = type;
-        if (typeof label === "string" && label.trim().length > 0) {
-          if (label.trim().length > 100) { res.status(400).json({ error: "label too long" }); return; }
-          updates.label = label.trim();
-        }
+        await db.runTransaction(async (transaction) => {
+          const eventSnap = await transaction.get(eventRef);
+          const txSnap = await transaction.get(txRef);
 
-        let newAmount = current.amount;
-        let newQty = current.quantity;
+          if (!eventSnap.exists) throw new Error("Event not found");
+          if (!txSnap.exists) throw new Error("Transaction not found");
 
-        if (amount !== undefined) {
-          const a = Number(amount);
-          if (!Number.isFinite(a) || a <= 0) { res.status(400).json({ error: "Invalid amount" }); return; }
-          updates.amount = a;
-          newAmount = a;
-        }
-        if (quantity !== undefined) {
-          const q = Math.floor(Number(quantity));
-          if (!Number.isFinite(q) || q <= 0) { res.status(400).json({ error: "Invalid quantity" }); return; }
-          updates.quantity = q;
-          newQty = q;
-        }
+          const eventData = eventSnap.data();
+          const txData = txSnap.data();
 
-        updates.totalAmount = newAmount * newQty;
-        if (typeof note === "string") updates.note = note.trim().slice(0, 300);
+          let totalIncome = Number(eventData.totalIncome) || 0;
+          let totalExpense = Number(eventData.totalExpense) || 0;
+          let transactions_income_count = Number(eventData.transactions_income_count) || 0;
+          let transactions_expense_count = Number(eventData.transactions_expense_count) || 0;
 
-        await txRef.update(updates);
-        await writeAuditLog(db, "update_transaction", email, { eventId, txId, updates });
+          // 1. Rollback old values from the event counters
+          const oldTotalAmount = Number(txData.totalAmount) || (Number(txData.amount) * Number(txData.quantity));
+          if (txData.type === "income") {
+            totalIncome -= oldTotalAmount;
+            transactions_income_count = Math.max(0, transactions_income_count - 1);
+          } else {
+            totalExpense -= oldTotalAmount;
+            transactions_expense_count = Math.max(0, transactions_expense_count - 1);
+          }
 
-        res.status(200).json({ ok: true, totalAmount: updates.totalAmount });
+          // 2. Derive updated values
+          const updatedType = (type === "income" || type === "expense") ? type : txData.type;
+          const updatedAmount = amount !== undefined ? Number(amount) : txData.amount;
+          const updatedQty = quantity !== undefined ? Math.floor(Number(quantity)) : txData.quantity;
+          const newTotalAmount = updatedAmount * updatedQty;
+          finalTotalAmount = newTotalAmount;
+
+          // 3. Add new values to the event counters
+          if (updatedType === "income") {
+            totalIncome += newTotalAmount;
+            transactions_income_count++;
+          } else {
+            totalExpense += newTotalAmount;
+            transactions_expense_count++;
+          }
+
+          // 4. Update documents
+          const txUpdates = {
+            type: updatedType,
+            amount: updatedAmount,
+            quantity: updatedQty,
+            totalAmount: newTotalAmount,
+            updatedBy: email,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          };
+          if (label !== undefined) txUpdates.label = label.trim();
+          if (note !== undefined) txUpdates.note = note.trim().slice(0, 300);
+
+          transaction.update(txRef, txUpdates);
+          transaction.update(eventRef, {
+            totalIncome,
+            totalExpense,
+            transactions_income_count,
+            transactions_expense_count,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        });
+
+        await writeAuditLog(db, "update_transaction", email, { eventId, txId, label });
+        res.status(200).json({ ok: true, totalAmount: finalTotalAmount });
         return;
       }
 
@@ -351,22 +395,47 @@ module.exports = async function handler(req, res) {
           res.status(400).json({ error: "eventId and txId are required" }); return;
         }
 
-        const txRef = db.collection("events").doc(eventId).collection("transactions").doc(txId);
-        const snap = await txRef.get();
-        if (!snap.exists) {
-          res.status(404).json({ error: "Transaction not found" }); return;
-        }
+        const eventRef = db.collection("events").doc(eventId);
+        const txRef = eventRef.collection("transactions").doc(txId);
 
-        const txData = snap.data();
-        await txRef.delete();
-        await writeAuditLog(db, "delete_transaction", email, {
-          eventId,
-          txId,
-          label: txData.label,
-          type: txData.type,
-          totalAmount: txData.totalAmount
+        await db.runTransaction(async (transaction) => {
+          const eventSnap = await transaction.get(eventRef);
+          const txSnap = await transaction.get(txRef);
+
+          if (!eventSnap.exists) throw new Error("Event not found");
+          if (!txSnap.exists) throw new Error("Transaction not found");
+
+          const eventData = eventSnap.data();
+          const txData = txSnap.data();
+
+          let totalIncome = Number(eventData.totalIncome) || 0;
+          let totalExpense = Number(eventData.totalExpense) || 0;
+          let transactionCount = Number(eventData.transactionCount) || 0;
+          let transactions_income_count = Number(eventData.transactions_income_count) || 0;
+          let transactions_expense_count = Number(eventData.transactions_expense_count) || 0;
+
+          const txTotalAmount = Number(txData.totalAmount) || (Number(txData.amount) * Number(txData.quantity));
+          if (txData.type === "income") {
+            totalIncome = Math.max(0, totalIncome - txTotalAmount);
+            transactions_income_count = Math.max(0, transactions_income_count - 1);
+          } else {
+            totalExpense = Math.max(0, totalExpense - txTotalAmount);
+            transactions_expense_count = Math.max(0, transactions_expense_count - 1);
+          }
+          transactionCount = Math.max(0, transactionCount - 1);
+
+          transaction.delete(txRef);
+          transaction.update(eventRef, {
+            totalIncome,
+            totalExpense,
+            transactionCount,
+            transactions_income_count,
+            transactions_expense_count,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
         });
 
+        await writeAuditLog(db, "delete_transaction", email, { eventId, txId });
         res.status(200).json({ ok: true });
         return;
       }
