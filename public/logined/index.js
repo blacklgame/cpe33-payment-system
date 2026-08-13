@@ -1,6 +1,7 @@
 /* ------------------------------------------------------------
    1) Sync this page to whichever Nu ID logged in
 ------------------------------------------------------------ */
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 import { db, auth } from "../firebase.js";
 import { ensureSignedInAsNuid } from "../auth-session.js";
@@ -31,54 +32,166 @@ document.getElementById("logoutLink").addEventListener("click", (e) => {
 });
 
 /* ------------------------------------------------------------
-   2) Choose File -> preview -> Send (upload payment slip)
+   2) Monthly dues list + month-scoped slip upload
 
    Slip images still upload straight from the browser to Cloudinary
    (keeps us off Vercel's serverless function body-size limit for
-   a multi-MB photo) -- but as a SIGNED upload now, not unsigned.
-
-   The old unsigned flow let the browser choose its own public_id,
-   which meant anyone could upload to (or overwrite!) any student's
-   slip path via devtools, regardless of who was logged in. Now
+   a multi-MB photo) -- but as a SIGNED upload, not unsigned.
    /api/sign-upload (server-side, using the Cloudinary API secret)
-   decides the public_id and signs overwrite:false, after checking
-   the caller's Firebase ID token actually matches the nuid they're
-   uploading for. The browser can only use the exact signature it
-   was given, for the exact public_id the server chose.
+   decides the public_id -- now under slips/{nuid}/{monthId}/... --
+   and signs overwrite:false, after checking the caller's Firebase
+   ID token actually matches the nuid they're uploading for, that
+   the picked month exists, and that this month isn't already paid
+   or pending. The browser can only use the exact signature it was
+   given, for the exact public_id the server chose.
 ------------------------------------------------------------ */
 const CLOUDINARY_CLOUD_NAME = "egcc6hml";
 
+const monthsHint = document.getElementById("monthsHint");
+const monthsList = document.getElementById("monthsList");
+const monthSelect = document.getElementById("monthSelect");
 const fileInput = document.getElementById("fileInput");
 const fileNameLabel = document.getElementById("fileName");
 const previewWrap = document.getElementById("previewWrap");
 const previewImg = document.getElementById("previewImg");
 const sendBtn = document.getElementById("sendBtn");
 const statusText = document.getElementById("statusText");
+const chooseBtn = document.querySelector(".btn-choose");
 
 let selectedFile = null;
+let terminated = false;
+
+const MONTH_PILL_META = {
+  paid: { label: "จ่ายแล้ว", cls: "pill-paid" },
+  pending: { label: "รอตรวจสอบ", cls: "pill-pending" },
+  unpaid: { label: "ยังไม่จ่าย", cls: "pill-unpaid" }
+};
+
+function disableUploadUi(message) {
+  monthSelect.disabled = true;
+  fileInput.disabled = true;
+  sendBtn.disabled = true;
+  if (chooseBtn) {
+    chooseBtn.style.pointerEvents = "none";
+    chooseBtn.style.opacity = "0.5";
+  }
+  if (message) {
+    statusText.textContent = message;
+    statusText.className = "status-text error";
+  }
+}
+
+async function loadMonthsAndStatus() {
+  if (!user) return;
+
+  try {
+    await ensureSignedInAsNuid(user.id);
+
+    const [paymentSnap, monthsSnap, monthlySnap] = await Promise.all([
+      getDoc(doc(db, "payments", user.id)),
+      getDocs(collection(db, "months")),
+      getDocs(collection(db, "payments", user.id, "months"))
+    ]);
+
+    if (paymentSnap.exists() && paymentSnap.data().studentStatus === "termination") {
+      terminated = true;
+    }
+
+    const months = monthsSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => b.id.localeCompare(a.id));
+
+    const statusByMonth = {};
+    monthlySnap.docs.forEach((d) => {
+      statusByMonth[d.id] = d.data();
+    });
+
+    renderMonthsList(months, statusByMonth);
+    populateMonthPicker(months, statusByMonth);
+
+    if (terminated) {
+      disableUploadUi("บัญชีของคุณพ้นสภาพนิสิตแล้ว ไม่สามารถอัปโหลดสลิปได้ กรุณาติดต่อผู้ดูแลระบบ");
+    }
+  } catch (err) {
+    console.error("Failed to load months:", err);
+    monthsHint.textContent = "โหลดข้อมูลไม่สำเร็จ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
+  }
+}
+
+function statusKeyFor(record) {
+  if (!record) return "unpaid";
+  if (record.paid) return "paid";
+  if (record.reviewStatus === "pending") return "pending";
+  return "unpaid";
+}
+
+function renderMonthsList(months, statusByMonth) {
+  monthsList.innerHTML = "";
+
+  if (months.length === 0) {
+    monthsHint.textContent = "ยังไม่มีเดือนที่เปิดให้ชำระเงิน กรุณารอผู้ดูแลระบบเปิดเดือนใหม่";
+    return;
+  }
+
+  monthsHint.textContent = "รายการเดือนและสถานะการชำระเงินของคุณ";
+
+  months.forEach((m) => {
+    const key = statusKeyFor(statusByMonth[m.id]);
+    const meta = MONTH_PILL_META[key];
+
+    const row = document.createElement("div");
+    row.className = "month-row";
+
+    const left = document.createElement("div");
+    left.innerHTML = `<div class="month-row-label">${m.label || m.id}</div>` +
+      `<div class="month-row-amount">${Number(m.amount || 0).toLocaleString("th-TH")} บาท</div>`;
+    row.appendChild(left);
+
+    const pill = document.createElement("span");
+    pill.className = `month-row-pill ${meta.cls}`;
+    pill.textContent = meta.label;
+    row.appendChild(pill);
+
+    monthsList.appendChild(row);
+  });
+}
+
+// The upload picker only offers months that still need a slip --
+// no reason to let a student pick a month that's already paid or
+// already has a slip pending review (sign-upload.js would reject it
+// anyway; filtering here just avoids a confusing round trip).
+function populateMonthPicker(months, statusByMonth) {
+  const payable = months.filter((m) => statusKeyFor(statusByMonth[m.id]) === "unpaid");
+
+  monthSelect.innerHTML = "";
+
+  if (terminated) return;
+
+  if (payable.length === 0) {
+    const opt = document.createElement("option");
+    opt.textContent = "ไม่มีเดือนที่ต้องชำระ";
+    monthSelect.appendChild(opt);
+    disableUploadUi();
+    return;
+  }
+
+  payable.forEach((m) => {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = `${m.label || m.id} (${Number(m.amount || 0).toLocaleString("th-TH")} บาท)`;
+    monthSelect.appendChild(opt);
+  });
+
+  monthSelect.disabled = false;
+  fileInput.disabled = false;
+  if (chooseBtn) {
+    chooseBtn.style.pointerEvents = "";
+    chooseBtn.style.opacity = "";
+  }
+}
 
 if (user) {
-  ensureSignedInAsNuid(user.id)
-    .then(() => getDoc(doc(db, "payments", user.id)))
-    .then((snap) => {
-      if (snap.exists()) {
-        const paymentData = snap.data();
-        if (paymentData.studentStatus === "termination") {
-          fileInput.disabled = true;
-          sendBtn.disabled = true;
-          statusText.textContent = "บัญชีของคุณพ้นสภาพนิสิตแล้ว ไม่สามารถอัปโหลดสลิปได้ กรุณาติดต่อผู้ดูแลระบบ";
-          statusText.className = "status-text error";
-          const chooseBtn = document.querySelector(".btn-choose");
-          if (chooseBtn) {
-            chooseBtn.style.pointerEvents = "none";
-            chooseBtn.style.opacity = "0.5";
-          }
-        }
-      }
-    })
-    .catch((err) => {
-      console.error("Failed to check user status:", err);
-    });
+  loadMonthsAndStatus();
 }
 
 fileInput.addEventListener("change", () => {
@@ -132,6 +245,13 @@ fileInput.addEventListener("change", () => {
 sendBtn.addEventListener("click", async () => {
   if (!selectedFile || !user) return;
 
+  const monthId = monthSelect.value;
+  if (!monthId) {
+    statusText.textContent = "กรุณาเลือกเดือนที่จะชำระ";
+    statusText.className = "status-text error";
+    return;
+  }
+
   sendBtn.disabled = true;
   sendBtn.textContent = "กำลังส่ง...";
   statusText.textContent = "";
@@ -145,7 +265,7 @@ sendBtn.addEventListener("click", async () => {
     const idToken = await auth.currentUser.getIdToken();
 
     // 1) Ask our server for a signed-upload ticket: it decides the
-    //    public_id (always under slips/{this user's own id}/...)
+    //    public_id (always under slips/{this user's own id}/{month}/...)
     //    and signs overwrite:false, so the browser can't pick or
     //    clobber any other path.
     const signRes = await fetch("/api/sign-upload", {
@@ -154,7 +274,7 @@ sendBtn.addEventListener("click", async () => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${idToken}`
       },
-      body: JSON.stringify({ nuid: user.id })
+      body: JSON.stringify({ nuid: user.id, monthId })
     });
 
     if (!signRes.ok) {
@@ -189,10 +309,9 @@ sendBtn.addEventListener("click", async () => {
     const slipUrl = result.secure_url;
 
     // 3) Tell our server the slip was uploaded, so it can record it
-    //    as PENDING review. Note this does NOT mark the student as
-    //    paid -- only an admin approving it from the dashboard does
-    //    that (see api/submit-slip.js for why: a direct client write
-    //    here used to be exactly how a fake slip could self-approve).
+    //    as PENDING review for this month. Note this does NOT mark
+    //    the month as paid -- only an admin approving it from the
+    //    dashboard does that.
     const submitRes = await fetch("/api/submit-slip", {
       method: "POST",
       headers: {
@@ -201,6 +320,7 @@ sendBtn.addEventListener("click", async () => {
       },
       body: JSON.stringify({
         nuid: user.id,
+        monthId,
         fileName: selectedFile.name,
         slipUrl,
         slipPublicId: result.public_id
@@ -214,9 +334,20 @@ sendBtn.addEventListener("click", async () => {
 
     statusText.textContent = `ส่ง "${selectedFile.name}" แล้ว รอผู้ดูแลระบบตรวจสอบ`;
     statusText.className = "status-text success";
+
+    // Reset the file picker and refresh the months list/picker so
+    // this month now shows "รอตรวจสอบ" and drops out of the upload
+    // dropdown (it's no longer payable until an admin acts on it).
+    fileInput.value = "";
+    selectedFile = null;
+    fileNameLabel.textContent = "ยังไม่ได้เลือกไฟล์";
+    previewWrap.classList.remove("show");
+    await loadMonthsAndStatus();
   } catch (err) {
     console.error("Upload failed:", err);
-    statusText.textContent = "อัปโหลดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+    statusText.textContent = err.message && err.message.includes("already")
+      ? err.message
+      : "อัปโหลดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
     statusText.className = "status-text error";
   } finally {
     sendBtn.textContent = "ส่ง (Send)";
@@ -272,4 +403,3 @@ if (btnCopy && bankAccountNumber && copyTooltip) {
     }
   });
 }
-

@@ -55,6 +55,32 @@ service cloud.firestore {
     match /payments/{nuid} {
       allow read: if request.auth != null && request.auth.uid == nuid;
       allow write: if false;
+
+      // Per-month payment records (one billing period each, e.g.
+      // "2026-02"). Same owner-only read rule as the parent doc, for
+      // the same reason (a student's own stats/upload pages read
+      // these directly with the client SDK). NOT writable from the
+      // client at all -- every write goes through Admin-SDK-only
+      // server endpoints that independently verify who's calling:
+      //   - api/submit-slip.js        (students: always writes paid:false)
+      //   - api/admin/approve-slip.js (admins only: the ONLY path to paid:true)
+      //   - api/admin/delete-slip.js  (admins only)
+      match /months/{monthId} {
+        allow read: if request.auth != null && request.auth.uid == nuid;
+        allow write: if false;
+      }
+    }
+
+    // Billing periods an admin has created (year, month, amount due),
+    // e.g. months/2026-02 = { year: 2026, month: 2, amount: 80 }.
+    // Readable by any signed-in user -- both the admin dashboard and
+    // a student's own upload/stats pages need this list, and it
+    // holds nothing sensitive (no student data, just prices/dates).
+    // Only writable via api/admin/create-month.js / delete-month.js
+    // (Admin SDK, admin-whitelist-checked), never directly.
+    match /months/{monthId} {
+      allow read: if request.auth != null;
+      allow write: if false;
     }
   }
 }

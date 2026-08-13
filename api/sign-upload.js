@@ -2,6 +2,7 @@ const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { rateLimit, clientIp } = require("./_lib/rate-limit");
 const { isValidNuid } = require("./_lib/validate");
+const { isValidMonthId } = require("./_lib/months");
 
 /* ------------------------------------------------------------
    Issues a signed-upload ticket for a payment slip.
@@ -74,13 +75,17 @@ module.exports = async function handler(request, response) {
 
     const decoded = await admin.auth().verifyIdToken(idToken);
 
-    const { nuid } = request.body || {};
+    const { nuid, monthId } = request.body || {};
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
       return;
     }
     if (!isValidNuid(nuid)) {
       response.status(400).json({ error: "Invalid Nu ID format" });
+      return;
+    }
+    if (!isValidMonthId(monthId)) {
+      response.status(400).json({ error: "Invalid monthId" });
       return;
     }
 
@@ -103,8 +108,28 @@ module.exports = async function handler(request, response) {
       return;
     }
 
+    const monthSnap = await db.collection("months").doc(monthId).get();
+    if (!monthSnap.exists) {
+      response.status(404).json({ error: "That month has not been set up by an admin yet" });
+      return;
+    }
+
+    // Already paid (approved) for this month -- no reason to let the
+    // student burn another upload slot on a month that's settled.
+    const monthlyPaymentSnap = await db
+      .collection("payments").doc(nuid)
+      .collection("months").doc(monthId).get();
+    if (monthlyPaymentSnap.exists && monthlyPaymentSnap.data().reviewStatus === "pending") {
+      response.status(409).json({ error: "This month already has a slip pending review" });
+      return;
+    }
+    if (monthlyPaymentSnap.exists && monthlyPaymentSnap.data().paid) {
+      response.status(409).json({ error: "This month is already marked as paid" });
+      return;
+    }
+
     const timestamp = Math.floor(Date.now() / 1000);
-    const publicId = `slips/${nuid}/${timestamp}_${crypto.randomBytes(8).toString("hex")}`;
+    const publicId = `slips/${nuid}/${monthId}/${timestamp}_${crypto.randomBytes(8).toString("hex")}`;
 
     // overwrite must be signed as the exact string the browser will
     // send back -- keep it a string ("false") on both sides, since

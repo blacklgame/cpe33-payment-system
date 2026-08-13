@@ -39,6 +39,19 @@ Vercel Serverless Functions (Node.js, /api)
 
 4. **Check status** — Student's stats page (`/stats`) reads `payments/{nuid}` from Firestore directly (owner-only Firestore rule: `request.auth.uid == nuid`). It shows `paid`, `reviewStatus`, and `studentStatus`.
 
+### Monthly dues
+
+Payment is now tracked **per month** instead of one lifetime paid/unpaid flag.
+
+- An admin creates billing months (year + month + amount, e.g. "February 2026, 80 baht") from `/admin/months.html`. Amounts can differ month to month.
+- Each month is stored at `months/{YYYY-MM}` (e.g. `months/2026-02`).
+- A student picks which month they're paying for when uploading a slip (`/logined`). Their per-month record lives at `payments/{nuid}/months/{YYYY-MM}`, holding that month's own `paid`/`reviewStatus`/`slipUrl`/`amount` (the amount is snapshotted at submission time, so editing a month's price later never changes what a past payment cost).
+- The admin dashboard (`/admin/dashboard.html`) has a month picker at the top — approve/reject/delete slips for whichever month is selected, and see how much has been collected for it.
+- `/admin/months.html` shows, per month, how much has been collected so far and how many students are still pending — plus a running grand total across every month.
+- A student's own status page (`/stats`) shows a per-month breakdown alongside the overall status.
+
+The old single `payments/{nuid}` doc still exists, but now only holds `studentStatus` (the admin's manual normal/termination/unpaid override), which applies to the student as a whole rather than to any one month.
+
 ### Admin flow
 
 1. **Login** — Admin goes to `/admin/login.html` and signs in with Google (`signInWithPopup`). After a successful sign-in the browser is redirected to the dashboard.

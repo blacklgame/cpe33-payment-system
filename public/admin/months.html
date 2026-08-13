@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Months - Payment System</title>
+  <!-- Google Fonts: Inter & Noto Sans Thai -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../theme.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="months.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header>
+    <div class="brand">
+      <span class="badge">CPE</span>
+      <span class="version">33</span>
+    </div>
+
+    <div class="welcome-msg" id="welcomeMsg">Welcome</div>
+
+    <nav class="nav-links">
+      <a href="./dashboard.html" class="nav-link">รายชื่อนิสิต</a>
+      <a href="./months.html" class="nav-link nav-link-active">รายเดือน</a>
+      <a href="../index.html" class="nav-link">หน้าหลัก</a>
+      <a href="#" class="nav-link" id="logoutLink">ออกจากระบบ</a>
+    </nav>
+  </header>
+
+  <!-- Main Content: hidden until auth is confirmed in months.js -->
+  <main id="mainContent" style="display:none;">
+    <h1>รายเดือน (Months)</h1>
+    <p class="page-subtitle">สร้างรอบเก็บเงินรายเดือนและดูยอดเงินที่เก็บได้ในแต่ละเดือน</p>
+
+    <p id="loadingText" style="opacity:0.7;">กำลังโหลดข้อมูล...</p>
+
+    <!-- Create / update a month -->
+    <form class="card month-form" id="monthForm" style="display:none;">
+      <h2>เพิ่ม / แก้ไขเดือน</h2>
+      <div class="month-form-row">
+        <label>
+          <span>เดือน</span>
+          <select id="monthSelect" class="input-field month-select" required></select>
+        </label>
+        <label>
+          <span>ปี ค.ศ.</span>
+          <input type="number" id="yearInput" class="input-field month-select" min="2000" max="2100" step="1" required>
+        </label>
+        <label>
+          <span>จำนวนเงิน (บาท)</span>
+          <input type="number" id="amountInput" class="input-field month-select" min="1" max="1000000" step="1" required>
+        </label>
+      </div>
+      <button type="submit" class="btn-primary" id="monthSubmitBtn">บันทึกเดือนนี้</button>
+      <p class="status-text" id="monthFormStatus"></p>
+    </form>
+
+    <!-- Overall totals across every month -->
+    <div class="card totals-card" id="totalsCard" style="display:none;">
+      <div class="totals-row">
+        <div class="totals-tile">
+          <div class="totals-label">เก็บได้แล้วทั้งหมด</div>
+          <div class="totals-value" id="grandTotalCollected">-</div>
+        </div>
+        <div class="totals-tile">
+          <div class="totals-label">รอตรวจสอบทั้งหมด</div>
+          <div class="totals-value" id="grandTotalPending">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="monthsContainer" class="months-container"></div>
+  </main>
+
+  <script type="module" src="months.js"></script>
+</body>
+</html>

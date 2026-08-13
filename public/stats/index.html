@@ -69,6 +69,14 @@
         <div class="detail-value" id="detailStudentStatus">-</div>
       </div>
     </div>
+
+    <!-- Per-month breakdown: one row per billing month an admin has
+         created, with this student's own status/slip for it. -->
+    <div class="months-section">
+      <h2>รายเดือน</h2>
+      <p class="page-subtitle" id="monthsHint" style="margin-top:-6px;">กำลังโหลดข้อมูล...</p>
+      <div id="monthsList" class="months-list"></div>
+    </div>
   </main>
 
   <script type="module" src="index.js"></script>

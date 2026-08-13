@@ -3,7 +3,10 @@ const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 
 /* ------------------------------------------------------------
-   Returns every user + payment doc for the admin dashboard.
+   Returns every user + payment doc for the admin dashboard, plus
+   the full monthly-dues picture: every "months" definition (the
+   billing periods an admin created via create-month.js) and every
+   student's per-month payment record (payments/{nuid}/months/*).
 
    dashboard.js used to read the `users` and `payments` collections
    directly with the client SDK. That worked because firestore.rules
@@ -15,6 +18,12 @@ const { rateLimit, clientIp } = require("../_lib/rate-limit");
    Admin SDK (which bypasses Firestore rules entirely) after
    independently verifying the caller is an approved admin, same
    pattern as every other api/admin/*.js file.
+
+   monthlyPayments is fetched with ONE collectionGroup('months')
+   query rather than 91 individual per-student subcollection reads
+   -- the roster is small, but there's no reason to pay for 91 round
+   trips when Firestore can flatten every payments/*/months/* doc
+   into a single query.
 
    Requires the same env var as the other api/admin/*.js files (set
    in Vercel -> Project -> Settings -> Environment Variables):
@@ -62,9 +71,11 @@ module.exports = async function handler(request, response) {
     }
 
     const db = admin.firestore();
-    const [usersSnap, paymentsSnap] = await Promise.all([
+    const [usersSnap, paymentsSnap, monthsSnap, monthlySnap] = await Promise.all([
       db.collection("users").get(),
-      db.collection("payments").get()
+      db.collection("payments").get(),
+      db.collection("months").get(),
+      db.collectionGroup("months").get()
     ]);
 
     const users = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -76,14 +87,34 @@ module.exports = async function handler(request, response) {
       const data = d.data();
       return {
         id: d.id,
-        paid: !!data.paid,
-        studentStatus: data.studentStatus || null,
-        slipUrl: data.slipUrl || null,
-        slipPublicId: data.slipPublicId || null
+        studentStatus: data.studentStatus || null
       };
     });
 
-    response.status(200).json({ users, payments });
+    // Billing periods an admin has created, sorted newest-first so
+    // the dashboard's month picker defaults to the most recent one.
+    const months = monthsSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => b.id.localeCompare(a.id));
+
+    // Flatten collectionGroup('months') -- each doc's parent is
+    // payments/{nuid} -- into { [nuid]: { [monthId]: {...} } } so
+    // the dashboard can look up any student+month pair in O(1).
+    const monthlyPayments = {};
+    monthlySnap.docs.forEach((d) => {
+      const nuid = d.ref.parent.parent.id;
+      const data = d.data();
+      if (!monthlyPayments[nuid]) monthlyPayments[nuid] = {};
+      monthlyPayments[nuid][d.id] = {
+        paid: !!data.paid,
+        reviewStatus: data.reviewStatus || null,
+        slipUrl: data.slipUrl || null,
+        slipPublicId: data.slipPublicId || null,
+        amount: typeof data.amount === "number" ? data.amount : null
+      };
+    });
+
+    response.status(200).json({ users, payments, months, monthlyPayments });
   } catch (err) {
     console.error("Admin list-data failed:", err);
     response.status(500).json({ error: "Internal server error" });

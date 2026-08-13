@@ -26,6 +26,7 @@ const cloudinary = require("cloudinary").v2;
 const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { isValidNuid } = require("../_lib/validate");
+const { isValidMonthId } = require("../_lib/months");
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
@@ -76,7 +77,7 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const { nuid } = request.body || {};
+    const { nuid, monthId } = request.body || {};
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
       return;
@@ -85,16 +86,20 @@ module.exports = async function handler(request, response) {
       response.status(400).json({ error: "Invalid Nu ID format" });
       return;
     }
+    if (!isValidMonthId(monthId)) {
+      response.status(400).json({ error: "Invalid monthId" });
+      return;
+    }
 
     // Look up the slip's public_id ourselves via the Admin SDK rather
     // than trusting whatever the client sends -- this way a tampered
     // request can't be used to delete an arbitrary Cloudinary asset.
     const db = admin.firestore();
-    const paymentRef = db.collection("payments").doc(nuid);
+    const paymentRef = db.collection("payments").doc(nuid).collection("months").doc(monthId);
     const paymentSnap = await paymentRef.get();
 
     if (!paymentSnap.exists) {
-      response.status(404).json({ error: "No payment record for this nuid" });
+      response.status(404).json({ error: "No payment record for this nuid/month" });
       return;
     }
 

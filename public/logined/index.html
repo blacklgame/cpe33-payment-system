@@ -69,14 +69,27 @@
       </div>
     </div>
 
+    <!-- Monthly dues: one row per month an admin has created, with
+         this student's own status for it. -->
+    <div class="card months-card">
+      <h2>ค่าใช้จ่ายรายเดือน (Monthly dues)</h2>
+      <p class="hint" id="monthsHint">กำลังโหลดรายเดือน...</p>
+      <div id="monthsList" class="months-list"></div>
+    </div>
+
     <!-- Upload Payment Slip Card -->
     <div class="card upload-card">
       <h2>แนบหลักฐานการชำระเงิน (Upload Slip)</h2>
-      <p class="hint">เลือกรูปภาพสลิปการโอนเงินจากอุปกรณ์ของคุณ แล้วกดส่ง</p>
+      <p class="hint">เลือกเดือนที่จะชำระ แล้วแนบรูปภาพสลิปการโอนเงินจากอุปกรณ์ของคุณ</p>
+
+      <div class="upload-row month-select-row">
+        <label for="monthSelect" class="month-select-label">เดือนที่จะชำระ</label>
+        <select id="monthSelect" class="input-field month-select-input" disabled></select>
+      </div>
 
       <div class="upload-row">
         <label for="fileInput" class="btn-choose">Choose File</label>
-        <input type="file" id="fileInput" class="file-input" accept="image/*">
+        <input type="file" id="fileInput" class="file-input" accept="image/*" disabled>
         <span class="file-name" id="fileName">ยังไม่ได้เลือกไฟล์</span>
       </div>
 

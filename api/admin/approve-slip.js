@@ -16,6 +16,7 @@ const admin = require("firebase-admin");
 const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { isValidNuid } = require("../_lib/validate");
+const { isValidMonthId } = require("../_lib/months");
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
@@ -57,7 +58,7 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const { nuid } = request.body || {};
+    const { nuid, monthId } = request.body || {};
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
       return;
@@ -66,9 +67,13 @@ module.exports = async function handler(request, response) {
       response.status(400).json({ error: "Invalid Nu ID format" });
       return;
     }
+    if (!isValidMonthId(monthId)) {
+      response.status(400).json({ error: "Invalid monthId" });
+      return;
+    }
 
     const db = admin.firestore();
-    const paymentRef = db.collection("payments").doc(nuid);
+    const paymentRef = db.collection("payments").doc(nuid).collection("months").doc(monthId);
     const paymentSnap = await paymentRef.get();
 
     // Require reviewStatus === "pending", not just "a slipUrl exists".

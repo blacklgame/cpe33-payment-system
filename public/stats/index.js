@@ -2,18 +2,21 @@
    1) Sync this page to whichever Nu ID logged in (same session
       key the login page + home page use), e.g. "69360303"
 ------------------------------------------------------------ */
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 import { db } from "../firebase.js";
 import { ensureSignedInAsNuid } from "../auth-session.js";
 
 // Same three states + colors the admin dashboard uses, so a
 // student sees the exact same label/color an admin set for them.
+// "normal"/"unpaid"/"pending" here describe the OVERALL picture
+// across every month (see computeOverallStatus below) unless an
+// admin has set studentStatus to "termination", which always wins.
 const STATUS_META = {
   normal: {
     label: "ปกติ",
     pillClass: "status-normal",
     cardClass: "card-normal",
-    note: "ตรวจสอบการชำระเงินเรียบร้อยแล้ว สถานะของคุณเป็นปกติ"
+    note: "ชำระเงินครบทุกเดือนที่เปิดไว้แล้ว"
   },
   termination: {
     label: "พ้นสภาพ",
@@ -25,20 +28,20 @@ const STATUS_META = {
     label: "ยังไม่จ่าย",
     pillClass: "status-unpaid",
     cardClass: "card-unpaid",
-    note: "ยังไม่พบการชำระเงินของคุณ กรุณาอัปโหลดสลิปที่หน้าหลัก"
+    note: "มีเดือนที่ยังไม่ได้ชำระเงิน กรุณาอัปโหลดสลิปที่หน้าหลัก"
   },
   pending: {
     label: "รอตรวจสอบ",
     pillClass: "status-pending",
     cardClass: "card-pending",
     note: "ได้รับสลิปของคุณแล้ว กำลังรอผู้ดูแลระบบตรวจสอบ"
-  },
-  rejected: {
-    label: "สลิปถูกปฏิเสธ",
-    pillClass: "status-unpaid",
-    cardClass: "card-unpaid",
-    note: "สลิปที่คุณส่งไม่ผ่านการตรวจสอบ กรุณาอัปโหลดสลิปใหม่ที่หน้าหลัก"
   }
+};
+
+const MONTH_PILL_META = {
+  paid: { label: "จ่ายแล้ว", pillClass: "status-normal" },
+  pending: { label: "รอตรวจสอบ", pillClass: "status-pending" },
+  unpaid: { label: "ยังไม่จ่าย", pillClass: "status-unpaid" }
 };
 
 const raw = sessionStorage.getItem("cpe33_user");
@@ -66,48 +69,81 @@ if (!raw) {
   const slipLink = document.getElementById("slipLink");
   const detailPaid = document.getElementById("detailPaid");
   const detailStudentStatus = document.getElementById("detailStudentStatus");
+  const monthsHint = document.getElementById("monthsHint");
+  const monthsList = document.getElementById("monthsList");
+
+  function statusKeyFor(record) {
+    if (!record) return "unpaid";
+    if (record.paid) return "paid";
+    if (record.reviewStatus === "pending") return "pending";
+    return "unpaid";
+  }
+
+  // Overall badge across every month an admin has created: "normal"
+  // only if every month is paid, "pending" if at least one is
+  // awaiting review (and none are flat-out unpaid), otherwise
+  // "unpaid". An empty months list (nothing created yet) counts as
+  // "normal" -- there's nothing to owe yet.
+  function computeOverallStatus(months, statusByMonth) {
+    if (months.length === 0) return "normal";
+    const keys = months.map((m) => statusKeyFor(statusByMonth[m.id]));
+    if (keys.every((k) => k === "paid")) return "normal";
+    if (keys.some((k) => k === "unpaid")) return "unpaid";
+    return "pending";
+  }
 
   /* ----------------------------------------------------------
-     2) Look up this user's payment record in Firestore.
-     The home page (public/logined/index.js) writes this doc,
-     at payments/{nuid}, when a user successfully uploads their
-     slip to Storage. An admin can also override studentStatus
-     from the admin dashboard -- when present, that takes over
-     from the plain paid/unpaid flag (see dashboard.js).
+     2) Look up this user's payment records in Firestore.
+     The upload page (public/logined/index.js) writes a doc at
+     payments/{nuid}/months/{monthId} for each slip. An admin can
+     also override studentStatus (top-level payments/{nuid} doc)
+     from the admin dashboard -- when it's "termination", that
+     always wins over whatever the per-month picture looks like.
   ---------------------------------------------------------- */
   ensureSignedInAsNuid(user.id)
-    .then(() => getDoc(doc(db, "payments", user.id)))
-    .then((paymentSnap) => {
+    .then(() =>
+      Promise.all([
+        getDoc(doc(db, "payments", user.id)),
+        getDocs(collection(db, "months")),
+        getDocs(collection(db, "payments", user.id, "months"))
+      ])
+    )
+    .then(([paymentSnap, monthsSnap, monthlySnap]) => {
       const payment = paymentSnap.exists() ? paymentSnap.data() : null;
-      const paid = !!(payment && payment.paid);
-      // Defensive: only treat this as "pending" if a slip is actually
-      // still attached (payment.slipUrl). reviewStatus alone isn't
-      // trusted here -- it's what caused the "stuck on pending forever
-      // after admin deletes the slip" bug, since a stale reviewStatus
-      // value with no slip behind it used to still render as pending.
-      const studentStatus = payment && payment.studentStatus
-        ? payment.studentStatus
-        : paid
-          ? "normal"
-          : (payment && payment.reviewStatus === "pending" && payment.slipUrl
-              ? "pending"
-              : (payment && payment.reviewStatus === "rejected" ? "rejected" : "unpaid"));
+      const override = payment && payment.studentStatus === "termination" ? "termination" : null;
 
-      const meta = STATUS_META[studentStatus] || STATUS_META.unpaid;
+      const months = monthsSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => b.id.localeCompare(a.id));
+
+      const statusByMonth = {};
+      monthlySnap.docs.forEach((d) => {
+        statusByMonth[d.id] = d.data();
+      });
+
+      const overall = override || computeOverallStatus(months, statusByMonth);
+      const meta = STATUS_META[overall] || STATUS_META.unpaid;
 
       statusBadge.textContent = meta.label;
       statusBadge.className = `status-pill ${meta.pillClass}`;
       statusCard.className = `status-card ${meta.cardClass}`;
       statusNote.textContent = meta.note;
 
-      detailPaid.textContent = paid ? "จ่ายแล้ว" : "ยังไม่จ่าย";
+      const paidCount = months.filter((m) => statusKeyFor(statusByMonth[m.id]) === "paid").length;
+      detailPaid.textContent = months.length ? `${paidCount}/${months.length} เดือน` : "-";
       detailStudentStatus.textContent = meta.label;
 
-      const slipUrl = payment ? payment.slipUrl : null;
-      if (slipUrl && slipUrl.startsWith("https://")) {
-        slipLink.href = slipUrl;
+      // Point the top "view slip" link at the most recently
+      // submitted month's slip, if any -- the per-month list below
+      // has a link for every individual month too.
+      const mostRecentWithSlip = months.find((m) => statusByMonth[m.id] && statusByMonth[m.id].slipUrl);
+      const topSlipUrl = mostRecentWithSlip ? statusByMonth[mostRecentWithSlip.id].slipUrl : null;
+      if (topSlipUrl && topSlipUrl.startsWith("https://")) {
+        slipLink.href = topSlipUrl;
         slipLink.classList.add("show");
       }
+
+      renderMonthsList(months, statusByMonth);
     })
     .catch((err) => {
       console.error("Failed to load payment status:", err);
@@ -117,7 +153,56 @@ if (!raw) {
       statusNote.textContent = "ไม่สามารถโหลดสถานะได้ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
       detailPaid.textContent = "-";
       detailStudentStatus.textContent = "-";
+      monthsHint.textContent = "โหลดข้อมูลไม่สำเร็จ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
     });
+
+  function renderMonthsList(months, statusByMonth) {
+    monthsList.innerHTML = "";
+
+    if (months.length === 0) {
+      monthsHint.textContent = "ยังไม่มีเดือนที่เปิดให้ชำระเงิน";
+      return;
+    }
+
+    monthsHint.textContent = "";
+
+    months.forEach((m) => {
+      const record = statusByMonth[m.id];
+      const key = statusKeyFor(record);
+      const meta = MONTH_PILL_META[key];
+
+      const row = document.createElement("div");
+      row.className = "month-row";
+
+      const left = document.createElement("div");
+      left.className = "month-row-left";
+      left.innerHTML = `<div class="month-row-label">${m.label || m.id}</div>` +
+        `<div class="month-row-amount">${Number(m.amount || 0).toLocaleString("th-TH")} บาท</div>`;
+      row.appendChild(left);
+
+      const right = document.createElement("div");
+      right.className = "month-row-right";
+
+      const slipUrl = record ? record.slipUrl : null;
+      if (slipUrl && slipUrl.startsWith("https://")) {
+        const link = document.createElement("a");
+        link.href = slipUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.className = "month-row-slip-link";
+        link.textContent = "ดูสลิป";
+        right.appendChild(link);
+      }
+
+      const pill = document.createElement("span");
+      pill.className = `status-pill ${meta.pillClass}`;
+      pill.textContent = meta.label;
+      right.appendChild(pill);
+
+      row.appendChild(right);
+      monthsList.appendChild(row);
+    });
+  }
 }
 
 document.getElementById("logoutLink").addEventListener("click", (e) => {

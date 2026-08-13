@@ -360,6 +360,60 @@ h1 {
   text-decoration: underline;
 }
 
+/* Amount paid, shown under the email for a student who's paid this
+   month -- reuses the same color as .status-normal so "paid" reads
+   consistently in one color across the card. */
+.user-amount {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ok);
+}
+
+/* Active nav link (current page), shared by dashboard.html and
+   months.html since both load this stylesheet. */
+.nav-link-active {
+  color: var(--text);
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 2px;
+}
+
+/* Month picker: sits above the toolbar, lets the admin pick which
+   billing month's slips they're reviewing/approving. */
+.month-picker-row {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+}
+
+.month-picker-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+  color: var(--text-dim);
+}
+
+.month-picker-select {
+  width: auto;
+  padding: 8px 34px 8px 16px;
+  font-size: 0.95rem;
+  text-align: left;
+}
+
+.month-picker-total {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--accent-2);
+}
+
 /* Responsive adjustment for small screens */
 @media (max-width: 768px) {
   header {
@@ -379,5 +433,10 @@ h1 {
 
   .card-actions {
     justify-content: center;
+  }
+
+  .month-picker-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

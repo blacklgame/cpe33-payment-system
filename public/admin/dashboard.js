@@ -1,19 +1,22 @@
 /* ------------------------------------------------------------
-   Admin dashboard: lists every user 1-91, shows paid/unpaid,
-   links to the uploaded slip, and lets the admin delete a slip
-   (which also resets that user back to unpaid).
+   Admin dashboard: lists every user 1-91, shows paid/unpaid FOR
+   A SELECTED MONTH, links to that month's uploaded slip, and lets
+   the admin approve/reject/delete it (which also resets that
+   month back to unpaid). Billing months themselves (year, month,
+   amount) are managed on the separate "รายเดือน" page (months.js)
+   -- this page is scoped to reviewing/approving slips against
+   whichever month is picked in the dropdown at the top.
 
    This client-side whitelist decides whether the page renders at
-   all -- it is NOT the real security boundary. The delete/status
-   actions are re-checked independently on the server
-   (api/admin/delete-slip.js, api/admin/set-status.js), which is the
-   only place that actually matters for security, since client-side
-   checks can always be bypassed in devtools.
+   all -- it is NOT the real security boundary. The approve/reject
+   /delete actions are re-checked independently on the server
+   (api/admin/approve-slip.js, api/admin/delete-slip.js), which is
+   the only place that actually matters for security, since
+   client-side checks can always be bypassed in devtools.
 
-   The admin email list itself lives in ONE place --
-   admin-emails.json, next to this file -- and every page/function
-   reads from it, so adding or removing an admin only ever means
-   editing that one JSON file.
+   The admin email list itself lives in Firestore (see
+   api/_lib/admins.js) -- every page/function calls the server to
+   check it, never reads it directly from the client.
 ------------------------------------------------------------ */
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { auth } from "../firebase.js";
@@ -28,33 +31,39 @@ const searchInput = document.getElementById("searchInput");
 const searchClear = document.getElementById("searchClear");
 const searchResultsInfo = document.getElementById("searchResultsInfo");
 const pendingFilterToggle = document.getElementById("pendingFilterToggle");
+const monthPickerRow = document.getElementById("monthPickerRow");
+const monthPicker = document.getElementById("monthPicker");
+const monthPickerTotal = document.getElementById("monthPickerTotal");
 
 // How many users each page shows. Pagination labels (below) are built
 // from whatever's actually loaded, so this is the only number to
 // touch if the page size should ever change.
 const PAGE_SIZE = 10;
 
-// All loaded users, in the same order as rendered (index 0 = row #1).
-// Rebuilt on every loadDashboard() call; renderPage()/renderSearch()
+// Raw data from the last successful /api/admin/list-data call. Kept
+// around so switching the month dropdown can re-derive `allUsers`
+// instantly (see mapUsersAndPayments) without another network call
+// -- every month's data is already loaded in monthlyPayments.
+let rawUsers = [];
+let rawPayments = [];
+let rawMonths = [];
+let rawMonthlyPayments = {};
+
+// All loaded users FOR THE CURRENTLY SELECTED MONTH, in the same
+// order as rendered (index 0 = row #1). Rebuilt whenever the month
+// picker changes or fresh data loads; renderPage()/renderSearch()
 // read from this instead of hitting Firestore again.
 let allUsers = [];
 let currentPage = 1;
 let currentSearch = "";
 let showPendingOnly = false;
+let currentMonthId = null;
 
 // Checks whether the currently signed-in user is an approved admin by
-// asking the server (which reads admin-emails.json server-side, where
-// it is no longer publicly accessible). Uses the Firebase ID token so
+// asking the server (which reads the admin whitelist server-side, so
+// it's never exposed to the browser). Uses the Firebase ID token so
 // the check can't be spoofed from the browser.
 //
-// Returns "admin", "not-admin", or "error" -- kept as three distinct
-// outcomes on purpose. A real "not-admin" (the server verified the
-// token and the email just isn't on the whitelist) should bounce the
-// user out. A network hiccup / cold-start timeout / transient 5xx
-// should NOT be treated the same way -- see the caller below for why
-// collapsing these together was causing admins to get kicked to the
-// login page for reasons that had nothing to do with their login.
-// Checks whether the currently signed-in user is an approved admin.
 // Note: We no longer call a separate check-admin endpoint on every
 // load. Instead, we call /api/admin/list-data directly. The server
 // checks the email whitelist in list-data. If it returns 401 or 403,
@@ -201,14 +210,16 @@ logoutLink.addEventListener("click", async (e) => {
   window.location.href = "./login.html";
 });
 
-// Turns the raw {users, payments} response into the flat, sorted
+// Turns the raw {users, payments, monthlyPayments} response, scoped
+// to whichever monthId is currently selected, into the flat, sorted
 // array the rest of the file renders from. Pulled out on its own so
-// both the initial load and the silent background refresh (below)
-// build rows exactly the same way -- one place to keep in sync.
-function mapUsersAndPayments(users, payments) {
-  const paymentsByNuid = {};
+// both the initial load, the silent background refresh, and simply
+// switching the month dropdown all build rows exactly the same way
+// -- one place to keep in sync.
+function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
+  const statusByNuid = {};
   payments.forEach((p) => {
-    paymentsByNuid[p.id] = p;
+    statusByNuid[p.id] = p;
   });
 
   // Sort by Nu ID so the list is stable and easy to scan (1-91 in order).
@@ -216,18 +227,17 @@ function mapUsersAndPayments(users, payments) {
 
   return userDocs.map((userData, index) => {
     const nuid = userData.id;
-    const payment = paymentsByNuid[nuid] || null;
-    const paid = !!(payment && payment.paid);
+    const monthly = monthId ? (monthlyPayments[nuid] || {})[monthId] || null : null;
+    const paid = !!(monthly && monthly.paid);
 
-    // studentStatus is a manual admin override. Older records that
-    // predate this feature won't have it yet, so fall back to the
-    // paid flag: paid -> "normal", not paid -> "unpaid". Once an
-    // admin picks a status from the dropdown it's stored explicitly
-    // and takes over from here on, including "termination" which
-    // paid/unpaid alone can't represent.
-    const studentStatus = payment && payment.studentStatus
-      ? payment.studentStatus
-      : (paid ? "normal" : "unpaid");
+    // studentStatus is a manual admin override (termination, or a
+    // forced "unpaid") that applies to the STUDENT, not to any one
+    // month -- it lives on the top-level payments/{nuid} doc.
+    // Older records that predate this feature won't have it yet, so
+    // fall back to this month's paid flag: paid -> "normal", not
+    // paid -> "unpaid".
+    const override = statusByNuid[nuid] && statusByNuid[nuid].studentStatus;
+    const studentStatus = override || (paid ? "normal" : "unpaid");
 
     return {
       index: index + 1,
@@ -237,19 +247,79 @@ function mapUsersAndPayments(users, payments) {
       paid,
       // A slip that's been submitted (via api/submit-slip.js) but
       // not yet approved by an admin (via api/admin/approve-slip.js)
-      // -- see firestore.rules for why paid can no longer flip to
-      // true on its own just because a slip was uploaded.
-      pendingReview: !!(payment && payment.slipUrl && !paid),
+      // for THIS month -- see firestore.rules for why paid can no
+      // longer flip to true on its own just because a slip was
+      // uploaded.
+      pendingReview: !!(monthly && monthly.reviewStatus === "pending"),
       studentStatus,
-      slipUrl: payment ? payment.slipUrl : null,
-      slipPublicId: payment ? payment.slipPublicId : null
+      slipUrl: monthly ? monthly.slipUrl : null,
+      slipPublicId: monthly ? monthly.slipPublicId : null,
+      amount: monthly ? monthly.amount : null
     };
   });
 }
 
+// Rebuilds allUsers from whatever's currently loaded, for the
+// currently-selected month, and re-renders. Cheap (no network call)
+// -- used both after a fresh fetch and whenever the month dropdown
+// changes.
+function applyCurrentMonth() {
+  allUsers = mapUsersAndPayments(rawUsers, rawPayments, rawMonthlyPayments, currentMonthId);
+  updateMonthTotal();
+
+  const pageCount = Math.max(1, Math.ceil(allUsers.length / PAGE_SIZE));
+  if (currentPage > pageCount) currentPage = pageCount;
+  renderPagination();
+  renderCurrentView();
+}
+
+function updateMonthTotal() {
+  if (!currentMonthId) {
+    monthPickerTotal.textContent = "";
+    return;
+  }
+  const paidUsers = allUsers.filter((u) => u.paid);
+  const total = paidUsers.reduce((sum, u) => sum + (u.amount || 0), 0);
+  monthPickerTotal.textContent = `เก็บได้ ${total.toLocaleString("th-TH")} บาท (${paidUsers.length}/${allUsers.length} คน)`;
+}
+
+function renderMonthPicker() {
+  monthPicker.innerHTML = "";
+
+  if (rawMonths.length === 0) {
+    monthPickerRow.style.display = "none";
+    currentMonthId = null;
+    return;
+  }
+
+  monthPickerRow.style.display = "flex";
+
+  rawMonths.forEach((m) => {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = `${m.label || m.id} (${Number(m.amount || 0).toLocaleString("th-TH")} บาท)`;
+    monthPicker.appendChild(opt);
+  });
+
+  // Keep whatever was already selected if it still exists (e.g.
+  // after a background refresh), otherwise default to the newest
+  // month (rawMonths is sorted newest-first by the server).
+  if (!currentMonthId || !rawMonths.some((m) => m.id === currentMonthId)) {
+    currentMonthId = rawMonths[0].id;
+  }
+  monthPicker.value = currentMonthId;
+}
+
+monthPicker.addEventListener("change", () => {
+  currentMonthId = monthPicker.value;
+  currentPage = 1;
+  applyCurrentMonth();
+});
+
 async function loadDashboard() {
   loadingText.textContent = "กำลังโหลดรายชื่อ...";
   toolbar.style.display = "none";
+  monthPickerRow.style.display = "none";
   rowsContainer.innerHTML = "";
 
   try {
@@ -286,22 +356,28 @@ async function loadDashboard() {
     markAdminSeen();
     mainContent.style.display = "flex";
 
-    const { users, payments } = await res.json();
+    const { users, payments, months, monthlyPayments } = await res.json();
 
     if (users.length === 0) {
       loadingText.textContent = "ไม่พบรายชื่อผู้ใช้ (ยังไม่ได้ seed ข้อมูล users)";
       return;
     }
 
+    if (!months || months.length === 0) {
+      loadingText.textContent = "ยังไม่มีเดือนที่เปิดให้ชำระเงิน กรุณาไปที่หน้า \"รายเดือน\" เพื่อสร้างเดือนแรกก่อน";
+      return;
+    }
+
     loadingText.textContent = "";
-    allUsers = mapUsersAndPayments(users, payments);
+    rawUsers = users;
+    rawPayments = payments;
+    rawMonths = months;
+    rawMonthlyPayments = monthlyPayments || {};
+
+    renderMonthPicker();
 
     toolbar.style.display = "flex";
-    renderPagination();
-    // Clamp in case the roster shrank since the last load.
-    const pageCount = Math.max(1, Math.ceil(allUsers.length / PAGE_SIZE));
-    if (currentPage > pageCount) currentPage = pageCount;
-    renderCurrentView();
+    applyCurrentMonth();
 
     // Data's in and rendered -- start (or keep) the background poll
     // that keeps it fresh from here on, so admins never need to hit
@@ -316,11 +392,11 @@ async function loadDashboard() {
 /* ------------------------------------------------------------
    Background auto-refresh: polls list-data every few seconds and
    quietly re-renders whatever view is currently on screen (same
-   page number / search / pending filter), so a newly-submitted
-   slip shows up in "รอตรวจสอบ" without the admin ever needing to
-   reload the page. Reloading is what used to cause the whole
-   re-login dance, so removing the need for it fixes both problems
-   at once.
+   page number / search / pending filter / selected month), so a
+   newly-submitted slip shows up in "รอตรวจสอบ" without the admin
+   ever needing to reload the page. Reloading is what used to cause
+   the whole re-login dance, so removing the need for it fixes both
+   problems at once.
 
    Deliberately silent: a failed poll (flaky network, brief 401
    while a token refreshes, etc.) just gets skipped and retried on
@@ -359,22 +435,23 @@ async function refreshDashboardSilently() {
     // signed out. Just skip this cycle and try again next tick.
     if (!res.ok) return;
 
-    const { users, payments } = await res.json();
-    if (users.length === 0) return;
+    const { users, payments, months, monthlyPayments } = await res.json();
+    if (users.length === 0 || !months || months.length === 0) return;
 
-    const previousCount = allUsers.length;
-    allUsers = mapUsersAndPayments(users, payments);
+    rawUsers = users;
+    rawPayments = payments;
+    rawMonths = months;
+    rawMonthlyPayments = monthlyPayments || {};
 
-    // Only rebuild the page buttons if the roster size actually
-    // changed (adding/removing a page) -- otherwise leave them alone
-    // so the admin's current page selection doesn't visibly flicker.
-    if (allUsers.length !== previousCount) {
-      renderPagination();
-      const pageCount = Math.max(1, Math.ceil(allUsers.length / PAGE_SIZE));
-      if (currentPage > pageCount) currentPage = pageCount;
+    // Only rebuild the month <select> if the set of months actually
+    // changed, so the admin's open dropdown doesn't flicker.
+    const currentOptionIds = Array.from(monthPicker.options).map((o) => o.value).sort().join(",");
+    const freshIds = months.map((m) => m.id).sort().join(",");
+    if (currentOptionIds !== freshIds) {
+      renderMonthPicker();
     }
 
-    renderCurrentView();
+    applyCurrentMonth();
   } catch (err) {
     // Silent by design -- see comment above.
     console.warn("Background refresh skipped:", err);
@@ -421,6 +498,7 @@ function renderPagination() {
 
 function renderCurrentView() {
   updatePendingBadge();
+  updateMonthTotal();
   if (currentSearch || showPendingOnly) {
     renderFilteredResults();
   } else {
@@ -508,7 +586,7 @@ const STATUS_META = {
   unpaid: { label: "ยังไม่จ่าย", pillClass: "status-unpaid", cardClass: "card-unpaid" }
 };
 
-function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus, slipUrl, slipPublicId }) {
+function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus, slipUrl, slipPublicId, amount }) {
   const row = document.createElement("div");
   row.className = "stat-row";
   row.dataset.nuid = nuid;
@@ -538,7 +616,8 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
 
   // Status control: a <select> styled as a colored pill. Admins click
   // it and choose one of the three states -- picking a new value
-  // saves it via the server (see handleStatusChange).
+  // saves it via the server (see handleStatusChange). This is a
+  // student-wide override (termination/etc.), not scoped to a month.
   const statusSelect = document.createElement("select");
   statusSelect.className = `status-pill ${STATUS_META[resolvedStatus].pillClass}`;
   statusSelect.dataset.previousValue = resolvedStatus;
@@ -569,6 +648,13 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
   emailEl.className = "user-email";
   emailEl.textContent = email;
   card.appendChild(emailEl);
+
+  if (paid && amount != null) {
+    const amountEl = document.createElement("div");
+    amountEl.className = "user-amount";
+    amountEl.textContent = `จ่ายแล้ว ${Number(amount).toLocaleString("th-TH")} บาท`;
+    card.appendChild(amountEl);
+  }
 
   const actions = document.createElement("div");
   actions.className = "card-actions";
@@ -624,7 +710,7 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
     const noSlip = document.createElement("span");
     noSlip.className = "action-btn-view";
     noSlip.style.opacity = "0.5";
-    noSlip.textContent = "ยังไม่มีสลิป";
+    noSlip.textContent = "ยังไม่มีสลิปเดือนนี้";
     actions.appendChild(noSlip);
   }
 
@@ -659,6 +745,8 @@ async function handleStatusChange(nuid, newStatus, selectEl, card) {
     // correct if the admin switches page or searches without a reload.
     const cached = allUsers.find((u) => u.nuid === nuid);
     if (cached) cached.studentStatus = newStatus;
+    const cachedRaw = rawPayments.find((p) => p.id === nuid);
+    if (cachedRaw) cachedRaw.studentStatus = newStatus;
   } catch (err) {
     console.error("Status update failed:", err);
     alert("เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
@@ -671,7 +759,7 @@ async function handleStatusChange(nuid, newStatus, selectEl, card) {
 
 async function handleApprove(nuid, triggerEl) {
   const confirmed = window.confirm(
-    `ยืนยันอนุมัติสลิปของรหัสนิสิต ${nuid}?\nระบบจะเปลี่ยนสถานะเป็น "จ่ายแล้ว"`
+    `ยืนยันอนุมัติสลิปของรหัสนิสิต ${nuid}?\nระบบจะเปลี่ยนสถานะเป็น "จ่ายแล้ว" สำหรับเดือนนี้`
   );
   if (!confirmed) return;
 
@@ -680,7 +768,7 @@ async function handleApprove(nuid, triggerEl) {
   actionInFlight = true;
 
   try {
-    const res = await authorizedFetch("/api/admin/approve-slip", { nuid });
+    const res = await authorizedFetch("/api/admin/approve-slip", { nuid, monthId: currentMonthId });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -701,7 +789,7 @@ async function handleApprove(nuid, triggerEl) {
 
 async function handleReject(nuid, slipPublicId, triggerEl) {
   const confirmed = window.confirm(
-    `ยืนยันปฏิเสธสลิปของรหัสนิสิต ${nuid}?\nสลิปจะถูกลบและสถานะจะเปลี่ยนเป็น "สลิปถูกปฏิเสธ"\nนิสิตจะสามารถอัปโหลดสลิปใหม่ได้อีกครั้ง`
+    `ยืนยันปฏิเสธสลิปของรหัสนิสิต ${nuid}?\nสลิปจะถูกลบและสถานะจะเปลี่ยนเป็น "สลิปถูกปฏิเสธ" สำหรับเดือนนี้\nนิสิตจะสามารถอัปโหลดสลิปใหม่สำหรับเดือนนี้ได้อีกครั้ง`
   );
   if (!confirmed) return;
 
@@ -710,7 +798,7 @@ async function handleReject(nuid, slipPublicId, triggerEl) {
   actionInFlight = true;
 
   try {
-    const res = await authorizedFetch("/api/admin/delete-slip", { nuid, slipPublicId });
+    const res = await authorizedFetch("/api/admin/delete-slip", { nuid, monthId: currentMonthId, slipPublicId });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -730,7 +818,7 @@ async function handleReject(nuid, slipPublicId, triggerEl) {
 
 async function handleDelete(nuid, slipPublicId, triggerEl) {
   const confirmed = window.confirm(
-    `ยืนยันลบสลิปของรหัสนิสิต ${nuid}?\nระบบจะเปลี่ยนสถานะกลับเป็น "ยังไม่จ่าย" ด้วย`
+    `ยืนยันลบสลิปของรหัสนิสิต ${nuid}?\nระบบจะเปลี่ยนสถานะกลับเป็น "ยังไม่จ่าย" สำหรับเดือนนี้ด้วย`
   );
   if (!confirmed) return;
 
@@ -738,7 +826,7 @@ async function handleDelete(nuid, slipPublicId, triggerEl) {
   actionInFlight = true;
 
   try {
-    const res = await authorizedFetch("/api/admin/delete-slip", { nuid, slipPublicId });
+    const res = await authorizedFetch("/api/admin/delete-slip", { nuid, monthId: currentMonthId, slipPublicId });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));

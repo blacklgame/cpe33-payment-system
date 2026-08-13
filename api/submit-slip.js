@@ -1,6 +1,7 @@
 const admin = require("firebase-admin");
 const { rateLimit, clientIp } = require("./_lib/rate-limit");
 const { isValidNuid } = require("./_lib/validate");
+const { isValidMonthId } = require("./_lib/months");
 
 /* ------------------------------------------------------------
    Records a submitted payment slip after it's already been
@@ -79,7 +80,7 @@ module.exports = async function handler(request, response) {
 
     const decoded = await admin.auth().verifyIdToken(idToken);
 
-    const { nuid, fileName, slipUrl, slipPublicId } = request.body || {};
+    const { nuid, monthId, fileName, slipUrl, slipPublicId } = request.body || {};
 
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
@@ -87,6 +88,10 @@ module.exports = async function handler(request, response) {
     }
     if (!isValidNuid(nuid)) {
       response.status(400).json({ error: "Invalid Nu ID format" });
+      return;
+    }
+    if (!isValidMonthId(monthId)) {
+      response.status(400).json({ error: "Invalid monthId" });
       return;
     }
 
@@ -114,8 +119,11 @@ module.exports = async function handler(request, response) {
 
     // Escape any regex metacharacters in nuid (e.g. ".", "*") before
     // interpolating -- raw interpolation would turn them into wildcards.
+    // The path must also match the exact month being paid for, so a
+    // slip uploaded (and signed) for one month can't be submitted
+    // against a different month's payment record.
     const escapedNuid = nuid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const publicIdRe = new RegExp("^slips/" + escapedNuid + "/.+");
+    const publicIdRe = new RegExp("^slips/" + escapedNuid + "/" + monthId + "/.+");
     if (!slipPublicId || typeof slipPublicId !== "string" || !publicIdRe.test(slipPublicId)) {
       response.status(400).json({ error: "Invalid slipPublicId" });
       return;
@@ -130,6 +138,12 @@ module.exports = async function handler(request, response) {
       return;
     }
 
+    const monthSnap = await db.collection("months").doc(monthId).get();
+    if (!monthSnap.exists) {
+      response.status(404).json({ error: "That month has not been set up by an admin yet" });
+      return;
+    }
+
     const paymentRef = db.collection("payments").doc(nuid);
     const paymentSnap = await paymentRef.get();
 
@@ -138,6 +152,13 @@ module.exports = async function handler(request, response) {
     // that actually matters.
     if (paymentSnap.exists && paymentSnap.data().studentStatus === "termination") {
       response.status(403).json({ error: "Account is terminated" });
+      return;
+    }
+
+    const monthlyRef = paymentRef.collection("months").doc(monthId);
+    const monthlySnap = await monthlyRef.get();
+    if (monthlySnap.exists && monthlySnap.data().paid) {
+      response.status(409).json({ error: "This month is already marked as paid" });
       return;
     }
 
@@ -169,19 +190,26 @@ module.exports = async function handler(request, response) {
     //
     // Explicitly clear any approvedBy/approvedAt/rejectedBy/rejectedAt
     // left over from a previous cycle (approve -> delete/reject ->
-    // resubmit). With merge:true, fields not mentioned here are left
-    // untouched -- so without this, a fresh "pending" submission could
-    // still carry a stale approvedAt from months ago, which is
-    // confusing at best (looks approved-then-pending at once) and
-    // actively misleading if anything ever reads approvedAt as "last
-    // time this nuid was approved" without also checking reviewStatus.
-    await paymentRef.set(
+    // resubmit) for THIS month. With merge:true, fields not mentioned
+    // here are left untouched -- so without this, a fresh "pending"
+    // submission could still carry a stale approvedAt from a previous
+    // rejected attempt at the same month, which is confusing at best
+    // (looks approved-then-pending at once) and actively misleading
+    // if anything ever reads approvedAt as "last time this nuid was
+    // approved for this month" without also checking reviewStatus.
+    //
+    // amount is snapshotted from the month's current price at the
+    // moment of submission -- so if an admin edits a month's amount
+    // later (create-month.js), already-submitted/approved payments
+    // keep showing what was actually charged at the time.
+    await monthlyRef.set(
       {
         paid: false,
         reviewStatus: "pending",
         fileName,
         slipUrl,
         slipPublicId,
+        amount: monthSnap.data().amount,
         submittedAt: admin.firestore.FieldValue.serverTimestamp(),
         approvedBy: admin.firestore.FieldValue.delete(),
         approvedAt: admin.firestore.FieldValue.delete(),

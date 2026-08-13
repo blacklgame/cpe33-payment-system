@@ -192,6 +192,68 @@ main {
   word-break: break-word;
 }
 
+/* Per-month breakdown */
+.months-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.months-section h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.months-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.month-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+
+.month-row-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.month-row-label {
+  font-weight: 600;
+}
+
+.month-row-amount {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.month-row-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.month-row-slip-link {
+  font-size: 0.85rem;
+  color: var(--accent-2);
+  text-decoration: none;
+}
+
+.month-row-slip-link:hover {
+  text-decoration: underline;
+}
+
 /* Responsive adjustment for mobile screens */
 @media (max-width: 600px) {
   .profile-block {
