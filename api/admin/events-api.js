@@ -50,8 +50,23 @@ module.exports = async function handler(req, res) {
     // --- GET ACTIONS ---
     if (req.method === "GET") {
       if (action === "list") {
-        // --- List Events (Option A: Fetch totals directly, no subcollection calls) ---
-        const eventsSnap = await db.collection("events").orderBy("createdAt", "asc").get();
+        // --- List Events (Fetch events + monthly payment income) ---
+        const [eventsSnap, monthlySnap] = await Promise.all([
+          db.collection("events").orderBy("createdAt", "asc").get(),
+          db.collectionGroup("months").get()
+        ]);
+
+        let monthlyIncomeTotal = 0;
+        let monthlyPaidCount = 0;
+        monthlySnap.docs.forEach((d) => {
+          if (!d.ref.parent.parent) return; // skip top-level billing period doc definitions
+          const data = d.data();
+          if (data.paid) {
+            monthlyIncomeTotal += Number(data.amount) || 0;
+            monthlyPaidCount += 1;
+          }
+        });
+
         const events = eventsSnap.docs.map((doc) => {
           const data = doc.data();
           return {
@@ -68,7 +83,7 @@ module.exports = async function handler(req, res) {
             transactions_expense_count: Number(data.transactions_expense_count) || 0
           };
         });
-        res.status(200).json({ events });
+        res.status(200).json({ events, monthlyIncomeTotal, monthlyPaidCount });
         return;
       }
 

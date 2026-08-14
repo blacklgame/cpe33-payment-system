@@ -74,12 +74,15 @@ async function loadEvents() {
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
     const events = data.events || [];
+    const monthlyIncomeTotal = Number(data.monthlyIncomeTotal) || 0;
+    const monthlyPaidCount = Number(data.monthlyPaidCount) || 0;
+
     loadingText.style.display = "none";
     donutStrip.style.display = "";
     eventsContainer.style.display = "flex";
 
-    updateDonutCharts(events);
-    renderEvents(events);
+    updateDonutCharts(events, monthlyIncomeTotal);
+    renderEvents(events, monthlyIncomeTotal, monthlyPaidCount);
   } catch (err) {
     console.error(err);
     loadingText.textContent = "เกิดข้อผิดพลาดในการโหลดข้อมูล";
@@ -93,8 +96,8 @@ function setDonut(fgEl, pctEl, pct) {
   pctEl.textContent = Math.round(d) + "%";
 }
 
-function updateDonutCharts(events) {
-  let totalIncome  = 0;
+function updateDonutCharts(events, monthlyIncomeTotal = 0) {
+  let totalIncome  = monthlyIncomeTotal;
   let totalExpense = 0;
   events.forEach((ev) => {
     totalIncome  += ev.totalIncome  || 0;
@@ -116,10 +119,65 @@ function updateDonutCharts(events) {
 }
 
 // ── Event accordion cards ─────────────────────────────────────
-function renderEvents(events) {
+function renderEvents(events, monthlyIncomeTotal = 0, monthlyPaidCount = 0) {
   eventsContainer.innerHTML = "";
 
-  if (events.length === 0) {
+  if (monthlyIncomeTotal > 0 || monthlyPaidCount > 0) {
+    const mAccordion = document.createElement("div");
+    mAccordion.className = "event-accordion";
+    mAccordion.style.borderLeft = "4px solid var(--primary, #3b82f6)";
+
+    const mHeader = document.createElement("div");
+    mHeader.className = "accordion-header";
+    mHeader.setAttribute("role", "button");
+    mHeader.setAttribute("tabindex", "0");
+    mHeader.setAttribute("aria-expanded", "false");
+    mHeader.innerHTML = `
+      <span class="acc-emoji">💳</span>
+      <div class="acc-info">
+        <div class="acc-name">ค่าสาขารายเดือน (Monthly Dues)</div>
+        <div class="acc-pills">
+          <span class="acc-pill acc-pill-income">+${fmtCompact(monthlyIncomeTotal)} ฿</span>
+          <span class="acc-pill acc-pill-expense">−0 ฿</span>
+          <span class="acc-pill acc-pill-balance">
+            ฿ ${fmtCompact(monthlyIncomeTotal)}
+          </span>
+        </div>
+      </div>
+      <span class="acc-chevron">▾</span>
+    `;
+
+    const mBody = document.createElement("div");
+    mBody.className = "accordion-body";
+    mBody.innerHTML = `
+      <div class="mini-tx mini-income">
+        <div class="mini-sign">+</div>
+        <div class="mini-label">ยอดเงินค่าสาขารายเดือนรวม (ชำระแล้ว ${monthlyPaidCount} รายการ)</div>
+        <div class="mini-meta">รวมทุกเดือน</div>
+        <div class="mini-amount">+${fmt(monthlyIncomeTotal)}</div>
+      </div>
+      <div style="padding:10px 12px; font-size:0.85rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center; background:var(--bg-surface, rgba(255,255,255,0.05)); border-radius:8px; margin-top:8px;">
+        <span>💡 ดูรายละเอียดและสถานะการชำระของคุณได้ที่หน้าหลัก</span>
+        <a href="./index.html" style="color:var(--primary, #3b82f6); text-decoration:none; font-weight:600;">ไปหน้าหลัก →</a>
+      </div>
+    `;
+
+    function toggleM() {
+      const isOpen = mAccordion.classList.toggle("open");
+      mHeader.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    }
+
+    mHeader.addEventListener("click", toggleM);
+    mHeader.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleM(); }
+    });
+
+    mAccordion.appendChild(mHeader);
+    mAccordion.appendChild(mBody);
+    eventsContainer.appendChild(mAccordion);
+  }
+
+  if (events.length === 0 && monthlyIncomeTotal === 0) {
     eventsContainer.innerHTML = `
       <div style="text-align:center;padding:48px 20px;color:var(--text-faint);">
         <div style="font-size:2.8rem;margin-bottom:12px;">🗂️</div>

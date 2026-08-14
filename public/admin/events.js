@@ -48,6 +48,8 @@ const eventModalStatus= document.getElementById("eventModalStatus");
 let currentUser = null;
 let idToken     = null;
 let eventsData  = [];
+let monthlyIncomeTotal = 0;
+let monthlyPaidCount = 0;
 let editingEventId = null; // null = create mode, string = edit mode
 
 // ── Auth guard ────────────────────────────────────────────────
@@ -122,6 +124,9 @@ async function loadEvents() {
     }
 
     eventsData = data.events || [];
+    monthlyIncomeTotal = Number(data.monthlyIncomeTotal) || 0;
+    monthlyPaidCount = Number(data.monthlyPaidCount) || 0;
+
     mainContent.style.display = "";
     loadingText.style.display = "none";
     donutStrip.style.display = "";
@@ -152,15 +157,12 @@ function setDonut(fgEl, pctEl, pct) {
 }
 
 function updateDonutCharts() {
-  let totalIncome  = 0;
+  let totalIncome  = monthlyIncomeTotal;
   let totalExpense = 0;
-  let incomeCount  = 0;
-  let expenseCount = 0;
 
   eventsData.forEach((ev) => {
     totalIncome  += ev.totalIncome  || 0;
     totalExpense += ev.totalExpense || 0;
-    incomeCount  += ev.transactionCount || 0; // rough proxy
   });
 
   const balance    = totalIncome - totalExpense;
@@ -182,19 +184,45 @@ function updateDonutCharts() {
   grandBalance.textContent      = fmt(balance);
   grandBalance.style.color      = balance < 0 ? "var(--danger)" : "";
 
-  grandIncomeCount.textContent  = `${eventsData.reduce((s, e) => s + (e.transactions_income_count || 0), 0)} รายการ`;
+  const incomeTxCount = eventsData.reduce((s, e) => s + (e.transactions_income_count || 0), 0) + monthlyPaidCount;
+  grandIncomeCount.textContent  = `${incomeTxCount} รายการ (รวมค่าสาขา)`;
   grandExpenseCount.textContent = `${eventsData.reduce((s, e) => s + (e.transactions_expense_count || 0), 0)} รายการ`;
-  grandBalanceCount.textContent = `${eventsData.length} กิจกรรม`;
-
-  // Re-derive per-type counts (not stored on server, derive from transactionCount rough)
-  // Accurate counts come from the detail page.
+  grandBalanceCount.textContent = `${eventsData.length} กิจกรรม + ค่าสาขา`;
 }
 
 // ── Event card rendering ──────────────────────────────────────
 function renderEventCards() {
   eventsGrid.innerHTML = "";
 
-  if (eventsData.length === 0) {
+  if (monthlyIncomeTotal > 0 || monthlyPaidCount > 0) {
+    const monthlyCard = document.createElement("a");
+    monthlyCard.className = "event-card";
+    monthlyCard.style.borderColor = "rgba(59, 130, 246, 0.4)";
+    monthlyCard.href = "./months.html";
+    monthlyCard.innerHTML = `
+      <div class="event-card-top">
+        <div class="event-emoji-name">
+          <span class="event-emoji">💳</span>
+          <span class="event-name">ค่าสาขารายเดือน (Monthly Dues)</span>
+        </div>
+        <span class="pill pill-income" style="font-size:0.75rem;">ระบบค่าสาขา</span>
+      </div>
+      <div class="event-card-pills">
+        <span class="pill pill-income"><span class="pill-dot"></span>รับ ${fmtCompact(monthlyIncomeTotal)} ฿</span>
+        <span class="pill pill-expense"><span class="pill-dot"></span>จ่าย 0 ฿</span>
+        <span class="pill pill-balance">
+          <span class="pill-dot"></span>
+          คงเหลือ ${fmtCompact(monthlyIncomeTotal)} ฿
+        </span>
+      </div>
+      <div class="event-card-footer">
+        ชำระแล้ว ${monthlyPaidCount} รายการ · จัดการค่าสาขา →
+      </div>
+    `;
+    eventsGrid.appendChild(monthlyCard);
+  }
+
+  if (eventsData.length === 0 && monthlyIncomeTotal === 0) {
     eventsGrid.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">🗂️</div>

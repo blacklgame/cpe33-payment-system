@@ -43,10 +43,22 @@ module.exports = async function handler(req, res) {
     res.setHeader("Cache-Control", "public, max-age=5, s-maxage=60, stale-while-revalidate=30");
 
     const db = admin.firestore();
-    const eventsSnap = await db.collection("events").orderBy("createdAt", "asc").get();
+    const [eventsSnap, txSnap, monthlySnap] = await Promise.all([
+      db.collection("events").orderBy("createdAt", "asc").get(),
+      db.collectionGroup("transactions").get(),
+      db.collectionGroup("months").get()
+    ]);
 
-    // Fetch all transactions across all events in exactly 1 query to solve the N+1 issue
-    const txSnap = await db.collectionGroup("transactions").get();
+    let monthlyIncomeTotal = 0;
+    let monthlyPaidCount = 0;
+    monthlySnap.docs.forEach((d) => {
+      if (!d.ref.parent.parent) return; // skip top-level billing period doc definitions
+      const data = d.data();
+      if (data.paid) {
+        monthlyIncomeTotal += Number(data.amount) || 0;
+        monthlyPaidCount += 1;
+      }
+    });
 
     // Group transactions by eventId in-memory
     const txsByEvent = {};
@@ -100,7 +112,7 @@ module.exports = async function handler(req, res) {
       };
     });
 
-    res.status(200).json({ events });
+    res.status(200).json({ events, monthlyIncomeTotal, monthlyPaidCount });
   } catch (err) {
     console.error("pub-list-events failed:", err);
     res.status(500).json({ error: "Internal server error" });
