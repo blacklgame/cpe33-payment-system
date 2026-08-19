@@ -12,6 +12,7 @@
 ------------------------------------------------------------ */
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { auth } from "../firebase.js";
+import { touchActivity, checkIsInactive, clearActivity } from "../auth-session.js";
 
 const welcomeMsg = document.getElementById("welcomeMsg");
 const loadingText = document.getElementById("loadingText");
@@ -73,36 +74,36 @@ function wasAdminSeenBefore() {
 
 function goToLogin() {
   clearAdminSeen();
+  clearActivity();
   window.location.href = "./login.html";
 }
 
-async function waitForRealSignOut() {
-  const delaysMs = [800, 1500, 2500];
-  for (const ms of delaysMs) {
-    await new Promise((resolve) => setTimeout(resolve, ms));
-    if (auth.currentUser) return false;
-  }
-  return true;
-}
-
 async function handleAuthState(user) {
+  if (typeof auth.authStateReady === "function") {
+    await auth.authStateReady();
+  }
+
+  if (checkIsInactive()) {
+    goToLogin();
+    return;
+  }
+
   if (user) {
     currentAdminUser = user;
+    markAdminSeen();
+    touchActivity();
     if (everConfirmedAdmin) return;
+    everConfirmedAdmin = true;
     welcomeMsg.textContent = `Welcome ${user.email}`;
     mainContent.style.display = "flex";
     loadMonths();
     return;
   }
 
-  if (!everConfirmedAdmin && !wasAdminSeenBefore()) {
+  if (!wasAdminSeenBefore()) {
     goToLogin();
     return;
   }
-
-  const reallySignedOut = await waitForRealSignOut();
-  if (!reallySignedOut) return;
-  goToLogin();
 }
 
 onAuthStateChanged(auth, handleAuthState);
@@ -110,11 +111,27 @@ onAuthStateChanged(auth, handleAuthState);
 logoutLink.addEventListener("click", async (e) => {
   e.preventDefault();
   clearAdminSeen();
+  clearActivity();
   await signOut(auth);
   window.location.href = "./login.html";
 });
 
 async function authorizedFetch(url, body) {
+  if (!currentAdminUser && auth.currentUser) {
+    currentAdminUser = auth.currentUser;
+  }
+  if (!currentAdminUser) {
+    goToLogin();
+    throw new Error("Not signed in");
+  }
+
+  if (checkIsInactive()) {
+    goToLogin();
+    throw new Error("Session expired due to inactivity");
+  }
+
+  touchActivity();
+
   let idToken = await currentAdminUser.getIdToken();
   let res = await fetch(url, {
     method: "POST",
@@ -133,6 +150,7 @@ async function authorizedFetch(url, body) {
 
   return res;
 }
+
 
 let totalStudentCount = 0;
 

@@ -7,6 +7,7 @@
 ------------------------------------------------------------ */
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { auth } from "../firebase.js";
+import { touchActivity, checkIsInactive, clearActivity } from "../auth-session.js";
 
 // ── URL param ─────────────────────────────────────────────────
 const eventId = new URLSearchParams(location.search).get("id");
@@ -62,10 +63,26 @@ let transactions  = [];
 let selectedType  = "income";
 let editingTxId   = null;
 
+function goToLogin() {
+  clearActivity();
+  location.href = "./login.html";
+}
+
 // ── Auth guard ────────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
-  if (!user) { location.href = "./login.html"; return; }
+  if (typeof auth.authStateReady === "function") {
+    await auth.authStateReady();
+  }
+
+  if (checkIsInactive()) {
+    goToLogin();
+    return;
+  }
+
+  if (!user) { goToLogin(); return; }
+
   currentUser = user;
+  touchActivity();
   welcomeMsg.textContent = user.displayName || user.email || "Admin";
   mainContent.style.display = "";
   await loadEventDetail();
@@ -73,6 +90,7 @@ onAuthStateChanged(auth, async (user) => {
 
 logoutLink.addEventListener("click", async (e) => {
   e.preventDefault();
+  clearActivity();
   await signOut(auth);
   location.href = "./login.html";
 });
@@ -85,13 +103,24 @@ function fmt(n) {
   });
 }
 
-async function getToken() {
-  return await currentUser.getIdToken();
+async function getToken(forceRefresh = false) {
+  if (!currentUser && auth.currentUser) {
+    currentUser = auth.currentUser;
+  }
+  if (!currentUser) return null;
+  return await currentUser.getIdToken(forceRefresh);
 }
 
 async function apiFetch(url, opts = {}) {
-  const tok = await getToken();
-  const res = await fetch(url, {
+  if (checkIsInactive()) {
+    goToLogin();
+    throw new Error("Session expired due to inactivity");
+  }
+
+  touchActivity();
+
+  let tok = await getToken();
+  let res = await fetch(url, {
     ...opts,
     headers: {
       "Content-Type": "application/json",
@@ -99,10 +128,24 @@ async function apiFetch(url, opts = {}) {
       ...(opts.headers || {})
     }
   });
+
+  if (res.status === 401 || res.status === 403) {
+    tok = await getToken(true);
+    res = await fetch(url, {
+      ...opts,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tok}`,
+        ...(opts.headers || {})
+      }
+    });
+  }
+
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
+
 
 function escapeHtml(s) {
   return String(s)

@@ -4,7 +4,7 @@
 import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { db, auth } from "../firebase.js";
-import { ensureSignedInAsNuid } from "../auth-session.js";
+import { ensureSignedInAsNuid, clearActivity } from "../auth-session.js";
 
 const raw = sessionStorage.getItem("cpe33_user");
 let user = null;
@@ -28,6 +28,7 @@ if (!raw) {
 document.getElementById("logoutLink").addEventListener("click", async (e) => {
   e.preventDefault();
   sessionStorage.removeItem("cpe33_user");
+  clearActivity();
   try {
     await signOut(auth);
   } catch (err) {

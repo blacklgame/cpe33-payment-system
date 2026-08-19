@@ -20,6 +20,7 @@
 ------------------------------------------------------------ */
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { auth } from "../firebase.js";
+import { touchActivity, checkIsInactive, clearActivity } from "../auth-session.js";
 
 const welcomeMsg = document.getElementById("welcomeMsg");
 const loadingText = document.getElementById("loadingText");
@@ -35,40 +36,19 @@ const monthPickerRow = document.getElementById("monthPickerRow");
 const monthPicker = document.getElementById("monthPicker");
 const monthPickerTotal = document.getElementById("monthPickerTotal");
 
-// How many users each page shows. Pagination labels (below) are built
-// from whatever's actually loaded, so this is the only number to
-// touch if the page size should ever change.
 const PAGE_SIZE = 10;
 
-// Raw data from the last successful /api/admin/list-data call. Kept
-// around so switching the month dropdown can re-derive `allUsers`
-// instantly (see mapUsersAndPayments) without another network call
-// -- every month's data is already loaded in monthlyPayments.
 let rawUsers = [];
 let rawPayments = [];
 let rawMonths = [];
 let rawMonthlyPayments = {};
 
-// All loaded users FOR THE CURRENTLY SELECTED MONTH, in the same
-// order as rendered (index 0 = row #1). Rebuilt whenever the month
-// picker changes or fresh data loads; renderPage()/renderSearch()
-// read from this instead of hitting Firestore again.
 let allUsers = [];
 let currentPage = 1;
 let currentSearch = "";
 let showPendingOnly = false;
 let currentMonthId = null;
 
-// Checks whether the currently signed-in user is an approved admin by
-// asking the server (which reads the admin whitelist server-side, so
-// it's never exposed to the browser). Uses the Firebase ID token so
-// the check can't be spoofed from the browser.
-//
-// Note: We no longer call a separate check-admin endpoint on every
-// load. Instead, we call /api/admin/list-data directly. The server
-// checks the email whitelist in list-data. If it returns 401 or 403,
-// we redirect the user to login. This combines data fetching and
-// authorization into a single, reliable step.
 let currentAdminUser = null;
 let everConfirmedAdmin = false;
 
@@ -95,7 +75,6 @@ function wasAdminSeenBefore() {
     if (localStorage.getItem(ADMIN_SEEN_KEY) === "1") {
       return true;
     }
-    // Fallback: check if there is an active Firebase Auth user session in localStorage
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith("firebase:authUser:")) {
@@ -113,24 +92,22 @@ function wasAdminSeenBefore() {
 
 const mainContent = document.getElementById("mainContent");
 
-// Every admin API call goes through here instead of calling fetch()
-// directly. The reason: a Firebase ID token is only good for ~1
-// hour, and the SDK's own background refresh timer can slip (e.g.
-// the tab sat inactive/backgrounded for a while, which browsers
-// throttle) -- so `currentAdminUser.getIdToken()` can occasionally
-// hand back a token that's already expired by the time the server
-// checks it, and the request comes back 401/403 even though the
-// admin is genuinely still signed in.
-//
-// Previously that 401/403 was taken at face value as "really signed
-// out" and sent the admin back to login -- annoying and wrong, since
-// signing in again gets a brand new (valid) token and the very same
-// action then works fine. Instead: on a 401/403, force Firebase to
-// mint a *real* fresh token (getIdToken(true) skips the local cache
-// and talks to Firebase directly) and retry exactly once before
-// treating it as an actual sign-out. Callers only see genuine auth
-// failures now.
 async function authorizedFetch(url, body) {
+  if (!currentAdminUser && auth.currentUser) {
+    currentAdminUser = auth.currentUser;
+  }
+  if (!currentAdminUser) {
+    goToLogin();
+    throw new Error("Not signed in");
+  }
+
+  if (checkIsInactive()) {
+    goToLogin();
+    throw new Error("Session expired due to inactivity");
+  }
+
+  touchActivity();
+
   let idToken = await currentAdminUser.getIdToken();
   let res = await fetch(url, {
     method: "POST",
@@ -159,45 +136,38 @@ async function authorizedFetch(url, body) {
 function goToLogin() {
   stopAutoRefresh();
   clearAdminSeen();
+  clearActivity();
   window.location.href = "./login.html";
 }
 
-// Waits for a spurious onAuthStateChanged(null) to resolve itself.
-async function waitForRealSignOut() {
-  const delaysMs = [800, 1500, 2500];
-  for (const ms of delaysMs) {
-    await new Promise((resolve) => setTimeout(resolve, ms));
-    if (auth.currentUser) return false; // recovered
-  }
-  return true;
-}
-
 async function handleAuthState(user) {
-  if (user) {
-    // Always capture the latest user object
-    currentAdminUser = user;
-
-    // If this admin is already confirmed in this session, don't
-    // trigger a full dashboard reload on silent token updates.
-    if (everConfirmedAdmin) return;
-
-    welcomeMsg.textContent = `Welcome ${user.email}`;
-    mainContent.style.display = "flex"; // Show main content area so loading text is visible
-    loadDashboard();
-    return;
+  if (typeof auth.authStateReady === "function") {
+    await auth.authStateReady();
   }
 
-  // --- user is null ---
-  if (!everConfirmedAdmin && !wasAdminSeenBefore()) {
+  if (checkIsInactive()) {
     goToLogin();
     return;
   }
 
-  const reallySignedOut = await waitForRealSignOut();
-  if (!reallySignedOut) {
+  if (user) {
+    currentAdminUser = user;
+    markAdminSeen();
+    touchActivity();
+
+    if (everConfirmedAdmin) return;
+    everConfirmedAdmin = true;
+
+    welcomeMsg.textContent = `Welcome ${user.email}`;
+    mainContent.style.display = "flex";
+    loadDashboard();
     return;
   }
-  goToLogin();
+
+  if (!wasAdminSeenBefore()) {
+    goToLogin();
+    return;
+  }
 }
 
 onAuthStateChanged(auth, handleAuthState);
@@ -206,6 +176,7 @@ logoutLink.addEventListener("click", async (e) => {
   e.preventDefault();
   stopAutoRefresh();
   clearAdminSeen();
+  clearActivity();
   await signOut(auth);
   window.location.href = "./login.html";
 });

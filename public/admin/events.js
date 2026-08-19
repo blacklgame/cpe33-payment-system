@@ -10,6 +10,7 @@
 ------------------------------------------------------------ */
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { auth } from "../firebase.js";
+import { touchActivity, checkIsInactive, clearActivity } from "../auth-session.js";
 
 // ── DOM refs ─────────────────────────────────────────────────
 const welcomeMsg      = document.getElementById("welcomeMsg");
@@ -52,13 +53,29 @@ let monthlyIncomeTotal = 0;
 let monthlyPaidCount = 0;
 let editingEventId = null; // null = create mode, string = edit mode
 
+function goToLogin() {
+  clearActivity();
+  window.location.href = "./login.html";
+}
+
 // ── Auth guard ────────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    window.location.href = "./login.html";
+  if (typeof auth.authStateReady === "function") {
+    await auth.authStateReady();
+  }
+
+  if (checkIsInactive()) {
+    goToLogin();
     return;
   }
+
+  if (!user) {
+    goToLogin();
+    return;
+  }
+
   currentUser = user;
+  touchActivity();
   welcomeMsg.textContent = user.displayName || user.email || "Admin";
   try {
     idToken = await user.getIdToken();
@@ -70,6 +87,7 @@ onAuthStateChanged(auth, async (user) => {
 
 logoutLink.addEventListener("click", async (e) => {
   e.preventDefault();
+  clearActivity();
   await signOut(auth);
   window.location.href = "./login.html";
 });
@@ -85,16 +103,26 @@ function fmtCompact(n) {
   return n.toFixed(0);
 }
 
-async function getToken() {
+async function getToken(forceRefresh = false) {
+  if (!currentUser && auth.currentUser) {
+    currentUser = auth.currentUser;
+  }
   if (!currentUser) return null;
-  idToken = await currentUser.getIdToken();
+  idToken = await currentUser.getIdToken(forceRefresh);
   return idToken;
 }
 
 // ── API calls ─────────────────────────────────────────────────
 async function apiFetch(url, opts = {}) {
-  const tok = await getToken();
-  const res = await fetch(url, {
+  if (checkIsInactive()) {
+    goToLogin();
+    throw new Error("Session expired due to inactivity");
+  }
+
+  touchActivity();
+
+  let tok = await getToken();
+  let res = await fetch(url, {
     ...opts,
     headers: {
       "Content-Type": "application/json",
@@ -102,10 +130,24 @@ async function apiFetch(url, opts = {}) {
       ...(opts.headers || {})
     }
   });
+
+  if (res.status === 401 || res.status === 403) {
+    tok = await getToken(true);
+    res = await fetch(url, {
+      ...opts,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tok}`,
+        ...(opts.headers || {})
+      }
+    });
+  }
+
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
+
 
 // ── Load & render ─────────────────────────────────────────────
 async function loadEvents() {

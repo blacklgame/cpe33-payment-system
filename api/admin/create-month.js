@@ -66,7 +66,7 @@ module.exports = async function handler(request, response) {
 
     if (action === "delete") {
       const targetMonthId = reqMonthId || (year && month ? monthIdOf(Number(year), Number(month)) : null);
-      if (!targetMonthId || !isValidMonthId(targetMonthId)) {
+      if (!targetMonthId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(targetMonthId)) {
         response.status(400).json({ error: "Invalid monthId" });
         return;
       }
