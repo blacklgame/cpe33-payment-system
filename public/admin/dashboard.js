@@ -296,15 +296,11 @@ async function loadDashboard() {
   try {
     const res = await authorizedFetch("/api/admin/list-data", {});
 
-    if (res.status === 401) {
-      // Token expired/invalid after retry -- dead session.
-      goToLogin();
-      return;
-    }
-
-    if (res.status === 403) {
-      // Not an approved admin. Try to extract which email was rejected
-      // so the login page can show a clear, actionable message.
+    if (res.status === 401 || res.status === 403) {
+      if (everConfirmedAdmin) {
+        loadingText.textContent = "ไม่สามารถเชื่อมต่อได้ กรุณาลองรีเฟรชหน้านี้";
+        return;
+      }
       let rejectedEmail = "";
       try {
         const body = await res.json();

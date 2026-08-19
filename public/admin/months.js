@@ -163,11 +163,11 @@ async function loadMonths() {
   try {
     const res = await authorizedFetch("/api/admin/list-data", {});
 
-    if (res.status === 401) {
-      goToLogin();
-      return;
-    }
-    if (res.status === 403) {
+    if (res.status === 401 || res.status === 403) {
+      if (everConfirmedAdmin) {
+        loadingText.textContent = "ไม่สามารถเชื่อมต่อได้ กรุณาลองรีเฟรชหน้านี้";
+        return;
+      }
       let rejectedEmail = "";
       try {
         const body = await res.json();
