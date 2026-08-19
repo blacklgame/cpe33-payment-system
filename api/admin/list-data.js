@@ -42,13 +42,13 @@ if (!admin.apps.length) {
 }
 
 module.exports = async function handler(request, response) {
-  if (request.method !== "POST") {
+  if (request.method !== "POST" && request.method !== "GET") {
     response.status(405).json({ error: "Method not allowed" });
     return;
   }
 
   try {
-    if (rateLimit(`list-data:${clientIp(request)}`, { limit: 30, windowMs: 60_000 }).limited) {
+    if (rateLimit(`list-data:${clientIp(request)}`, { limit: 60, windowMs: 60_000 }).limited) {
       response.status(429).json({ error: "Too many requests, please slow down" });
       return;
     }
@@ -71,6 +71,24 @@ module.exports = async function handler(request, response) {
     }
 
     const db = admin.firestore();
+
+    const action = request.query?.action || request.body?.action;
+    if (action === "audit-log") {
+      const snap = await db.collection("auditLog").orderBy("createdAt", "desc").limit(100).get();
+      const logs = snap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          action: data.action || "",
+          actor: data.actor || "",
+          details: data.details || {},
+          createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null
+        };
+      });
+      response.status(200).json({ logs });
+      return;
+    }
+
     const [usersSnap, paymentsSnap, monthsSnap, monthlySnap] = await Promise.all([
       db.collection("users").get(),
       db.collection("payments").get(),
@@ -80,9 +98,6 @@ module.exports = async function handler(request, response) {
 
     const users = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    // Only send the fields the dashboard actually renders -- no need
-    // to ship raw Firestore Timestamps (approvedAt/rejectedAt/etc.)
-    // to the browser for a table it doesn't display them in.
     const payments = paymentsSnap.docs.map((d) => {
       const data = d.data();
       return {
@@ -91,21 +106,12 @@ module.exports = async function handler(request, response) {
       };
     });
 
-    // Billing periods an admin has created, sorted newest-first so
-    // the dashboard's month picker defaults to the most recent one.
     const months = monthsSnap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => b.id.localeCompare(a.id));
 
-    // Flatten collectionGroup('months') -- each doc's parent is
-    // payments/{nuid} -- into { [nuid]: { [monthId]: {...} } } so
-    // the dashboard can look up any student+month pair in O(1).
     const monthlyPayments = {};
     monthlySnap.docs.forEach((d) => {
-      // collectionGroup('months') also matches the top-level `months`
-      // collection (billing periods). For those docs parent.parent is null
-      // because they live at /months/{id}, not /payments/{nuid}/months/{id}.
-      // Skip them here -- they are already captured in the `months` array above.
       if (!d.ref.parent.parent) return;
       const nuid = d.ref.parent.parent.id;
       const data = d.data();

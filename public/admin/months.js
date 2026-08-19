@@ -272,7 +272,7 @@ async function handleDeleteMonth(m, triggerEl) {
 
   deleteBtn_setBusy(triggerEl, true);
   try {
-    const res = await authorizedFetch("/api/admin/delete-month", { monthId: m.id });
+    const res = await authorizedFetch("/api/admin/create-month", { action: "delete", monthId: m.id });
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
       throw new Error(errBody.error || "Delete failed");

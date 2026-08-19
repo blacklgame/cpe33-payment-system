@@ -60,7 +60,22 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const { year, month, amount } = request.body || {};
+    const { action, year, month, amount, monthId: reqMonthId } = request.body || {};
+
+    const db = admin.firestore();
+
+    if (action === "delete") {
+      const targetMonthId = reqMonthId || (year && month ? monthIdOf(Number(year), Number(month)) : null);
+      if (!targetMonthId || !isValidMonthId(targetMonthId)) {
+        response.status(400).json({ error: "Invalid monthId" });
+        return;
+      }
+
+      await db.collection("months").doc(targetMonthId).delete();
+      await writeAuditLog(db, "delete_month", email, { monthId: targetMonthId });
+      response.status(200).json({ ok: true });
+      return;
+    }
 
     const yearNum = Number(year);
     const monthNum = Number(month);
@@ -80,7 +95,6 @@ module.exports = async function handler(request, response) {
     }
 
     const monthId = monthIdOf(yearNum, monthNum);
-    const db = admin.firestore();
     const monthRef = db.collection("months").doc(monthId);
     const existing = await monthRef.get();
 
@@ -110,3 +124,4 @@ module.exports = async function handler(request, response) {
     response.status(500).json({ error: "Internal server error" });
   }
 };
+
