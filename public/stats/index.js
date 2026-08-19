@@ -3,7 +3,7 @@
       key the login page + home page use), e.g. "69360303"
 ------------------------------------------------------------ */
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { db, auth } from "../firebase.js";
 import { ensureSignedInAsNuid, clearActivity } from "../auth-session.js";
 
@@ -101,61 +101,67 @@ if (!raw) {
      from the admin dashboard -- when it's "termination", that
      always wins over whatever the per-month picture looks like.
   ---------------------------------------------------------- */
-  ensureSignedInAsNuid(user.id)
-    .then(() =>
-      Promise.all([
-        getDoc(doc(db, "payments", user.id)),
-        getDocs(collection(db, "months")),
-        getDocs(collection(db, "payments", user.id, "months"))
-      ])
-    )
-    .then(([paymentSnap, monthsSnap, monthlySnap]) => {
-      const payment = paymentSnap.exists() ? paymentSnap.data() : null;
-      const override = payment && payment.studentStatus === "termination" ? "termination" : null;
+  function loadStatsData() {
+    ensureSignedInAsNuid(user.id)
+      .then(() =>
+        Promise.all([
+          getDoc(doc(db, "payments", user.id)),
+          getDocs(collection(db, "months")),
+          getDocs(collection(db, "payments", user.id, "months"))
+        ])
+      )
+      .then(([paymentSnap, monthsSnap, monthlySnap]) => {
+        const payment = paymentSnap.exists() ? paymentSnap.data() : null;
+        const override = payment && payment.studentStatus === "termination" ? "termination" : null;
 
-      const months = monthsSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => b.id.localeCompare(a.id));
+        const months = monthsSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => b.id.localeCompare(a.id));
 
-      const statusByMonth = {};
-      monthlySnap.docs.forEach((d) => {
-        statusByMonth[d.id] = d.data();
+        const statusByMonth = {};
+        monthlySnap.docs.forEach((d) => {
+          statusByMonth[d.id] = d.data();
+        });
+
+        const overall = override || computeOverallStatus(months, statusByMonth);
+        const meta = STATUS_META[overall] || STATUS_META.unpaid;
+
+        statusBadge.textContent = meta.label;
+        statusBadge.className = `status-pill ${meta.pillClass}`;
+        statusCard.className = `status-card ${meta.cardClass}`;
+        statusNote.textContent = meta.note;
+
+        const paidCount = months.filter((m) => statusKeyFor(statusByMonth[m.id]) === "paid").length;
+        detailPaid.textContent = months.length ? `${paidCount}/${months.length} เดือน` : "-";
+        detailStudentStatus.textContent = meta.label;
+
+        const mostRecentWithSlip = months.find((m) => statusByMonth[m.id] && statusByMonth[m.id].slipUrl);
+        const topSlipUrl = mostRecentWithSlip ? statusByMonth[mostRecentWithSlip.id].slipUrl : null;
+        if (topSlipUrl && topSlipUrl.startsWith("https://")) {
+          slipLink.href = topSlipUrl;
+          slipLink.classList.add("show");
+        }
+
+        renderMonthsList(months, statusByMonth);
+      })
+      .catch((err) => {
+        console.error("Failed to load payment status:", err);
+        statusBadge.textContent = "โหลดข้อมูลไม่สำเร็จ";
+        statusBadge.className = "status-pill status-unpaid";
+        statusCard.className = "status-card card-unpaid";
+        statusNote.textContent = "ไม่สามารถโหลดสถานะได้ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
+        detailPaid.textContent = "-";
+        detailStudentStatus.textContent = "-";
+        monthsHint.textContent = "โหลดข้อมูลไม่สำเร็จ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
       });
+  }
 
-      const overall = override || computeOverallStatus(months, statusByMonth);
-      const meta = STATUS_META[overall] || STATUS_META.unpaid;
-
-      statusBadge.textContent = meta.label;
-      statusBadge.className = `status-pill ${meta.pillClass}`;
-      statusCard.className = `status-card ${meta.cardClass}`;
-      statusNote.textContent = meta.note;
-
-      const paidCount = months.filter((m) => statusKeyFor(statusByMonth[m.id]) === "paid").length;
-      detailPaid.textContent = months.length ? `${paidCount}/${months.length} เดือน` : "-";
-      detailStudentStatus.textContent = meta.label;
-
-      // Point the top "view slip" link at the most recently
-      // submitted month's slip, if any -- the per-month list below
-      // has a link for every individual month too.
-      const mostRecentWithSlip = months.find((m) => statusByMonth[m.id] && statusByMonth[m.id].slipUrl);
-      const topSlipUrl = mostRecentWithSlip ? statusByMonth[mostRecentWithSlip.id].slipUrl : null;
-      if (topSlipUrl && topSlipUrl.startsWith("https://")) {
-        slipLink.href = topSlipUrl;
-        slipLink.classList.add("show");
-      }
-
-      renderMonthsList(months, statusByMonth);
-    })
-    .catch((err) => {
-      console.error("Failed to load payment status:", err);
-      statusBadge.textContent = "โหลดข้อมูลไม่สำเร็จ";
-      statusBadge.className = "status-pill status-unpaid";
-      statusCard.className = "status-card card-unpaid";
-      statusNote.textContent = "ไม่สามารถโหลดสถานะได้ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
-      detailPaid.textContent = "-";
-      detailStudentStatus.textContent = "-";
-      monthsHint.textContent = "โหลดข้อมูลไม่สำเร็จ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
-    });
+  let loaded = false;
+  onAuthStateChanged(auth, (firebaseUser) => {
+    if (loaded) return;
+    loaded = true;
+    loadStatsData();
+  });
 
   function renderMonthsList(months, statusByMonth) {
     monthsList.innerHTML = "";

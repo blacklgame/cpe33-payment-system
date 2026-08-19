@@ -2,6 +2,7 @@ const admin = require("firebase-admin");
 const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { monthIdOf, labelOf } = require("../_lib/months");
+const { writeAuditLog } = require("../_lib/audit");
 
 /* ------------------------------------------------------------
    Creates (or updates the amount of) a billing month, e.g.

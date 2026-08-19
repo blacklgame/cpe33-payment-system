@@ -2,7 +2,7 @@
    1) Sync this page to whichever Nu ID logged in
 ------------------------------------------------------------ */
 import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { db, auth } from "../firebase.js";
 import { ensureSignedInAsNuid, clearActivity } from "../auth-session.js";
 
@@ -196,8 +196,26 @@ function populateMonthPicker(months, statusByMonth) {
   }
 }
 
+// Wait for Firebase Auth to restore the custom-token session from
+// localStorage before reading Firestore. Without this, a page refresh
+// would fire loadMonthsAndStatus() before auth.currentUser is set,
+// causing every Firestore read (which requires auth.uid == nuid) to
+// fail with a permission-denied error and show "โหลดข้อมูลไม่สำเร็จ".
 if (user) {
-  loadMonthsAndStatus();
+  let loaded = false;
+  onAuthStateChanged(auth, (firebaseUser) => {
+    if (loaded) return; // only run once
+    if (firebaseUser && firebaseUser.uid === user.id) {
+      loaded = true;
+      loadMonthsAndStatus();
+    } else if (!firebaseUser) {
+      // Firebase hasn't restored yet — authStateReady inside
+      // ensureSignedInAsNuid will handle the wait. Kick it off anyway
+      // so the page loads as soon as auth is ready.
+      loaded = true;
+      loadMonthsAndStatus();
+    }
+  });
 }
 
 fileInput.addEventListener("change", () => {
@@ -268,13 +286,9 @@ sendBtn.addEventListener("click", async () => {
     // signature or calling submit-slip -- both now check the ID
     // token against the nuid in the request.
     await ensureSignedInAsNuid(user.id);
-    const idToken = await auth.currentUser.getIdToken();
+    let idToken = await auth.currentUser.getIdToken();
 
-    // 1) Ask our server for a signed-upload ticket: it decides the
-    //    public_id (always under slips/{this user's own id}/{month}/...)
-    //    and signs overwrite:false, so the browser can't pick or
-    //    clobber any other path.
-    const signRes = await fetch("/api/sign-upload", {
+    let signRes = await fetch("/api/sign-upload", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -283,6 +297,18 @@ sendBtn.addEventListener("click", async () => {
       body: JSON.stringify({ nuid: user.id, monthId })
     });
 
+    if (signRes.status === 401 || signRes.status === 403) {
+      idToken = await auth.currentUser.getIdToken(true);
+      signRes = await fetch("/api/sign-upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ nuid: user.id, monthId })
+      });
+    }
+
     if (!signRes.ok) {
       const errBody = await signRes.json().catch(() => ({}));
       throw new Error(errBody.error || "Could not start upload");
@@ -290,9 +316,6 @@ sendBtn.addEventListener("click", async () => {
 
     const { timestamp, signature, publicId, apiKey, cloudName } = await signRes.json();
 
-    // 2) Upload straight to Cloudinary using that signature. Every
-    //    signed param here must match exactly what the server
-    //    signed, or Cloudinary rejects the upload.
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("api_key", apiKey);
@@ -314,11 +337,7 @@ sendBtn.addEventListener("click", async () => {
     const result = await uploadRes.json();
     const slipUrl = result.secure_url;
 
-    // 3) Tell our server the slip was uploaded, so it can record it
-    //    as PENDING review for this month. Note this does NOT mark
-    //    the month as paid -- only an admin approving it from the
-    //    dashboard does that.
-    const submitRes = await fetch("/api/submit-slip", {
+    let submitRes = await fetch("/api/submit-slip", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -332,6 +351,24 @@ sendBtn.addEventListener("click", async () => {
         slipPublicId: result.public_id
       })
     });
+
+    if (submitRes.status === 401 || submitRes.status === 403) {
+      idToken = await auth.currentUser.getIdToken(true);
+      submitRes = await fetch("/api/submit-slip", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          nuid: user.id,
+          monthId,
+          fileName: selectedFile.name,
+          slipUrl,
+          slipPublicId: result.public_id
+        })
+      });
+    }
 
     if (!submitRes.ok) {
       const errBody = await submitRes.json().catch(() => ({}));
