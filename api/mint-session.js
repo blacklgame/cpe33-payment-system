@@ -1,6 +1,5 @@
 const admin = require("firebase-admin");
 const { rateLimit, clientIp } = require("./_lib/rate-limit");
-const { isValidNuid } = require("./_lib/validate");
 
 /* ------------------------------------------------------------
    Mints a Firebase Auth custom token with uid == nuid.
@@ -83,32 +82,11 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    // 2. Legacy fallback via nuid in request body
-    const { nuid } = request.body || {};
-    if (!nuid || typeof nuid !== "string") {
-      response.status(400).json({ error: "Missing authorization token or nuid" });
-      return;
-    }
-
-    if (!isValidNuid(nuid)) {
-      response.status(400).json({ error: "Invalid Nu ID format" });
-      return;
-    }
-
-    const userSnap = await db.collection("users").doc(nuid).get();
-    if (!userSnap.exists) {
-      response.status(404).json({ error: "Student ID does not exist in the roster" });
-      return;
-    }
-
-    const userData = userSnap.data() || {};
-    const token = await admin.auth().createCustomToken(nuid);
-    response.status(200).json({
-      token,
-      nuid,
-      name: userData.name || "",
-      email: userData.email || ""
-    });
+    // No Bearer token provided — reject. The only supported login
+    // flow is Google OAuth: the client must send a valid Google ID
+    // token via Authorization: Bearer <idToken> (see index.js).
+    response.status(400).json({ error: "Missing authorization token" });
+    return;
   } catch (err) {
     console.error("mint-session failed:", err);
     response.status(500).json({ error: "Internal server error" });

@@ -112,6 +112,9 @@ module.exports = async function handler(request, response) {
       response.status(400).json({ error: "fileName too long" });
       return;
     }
+    // Strip HTML special characters before storing — prevents stored XSS
+    // if fileName is ever rendered directly in the admin dashboard HTML.
+    const safeFileName = fileName.replace(/[<>"'&]/g, "");
     if (!slipUrl || typeof slipUrl !== "string" || !CLOUDINARY_URL_RE.test(slipUrl)) {
       response.status(400).json({ error: "Invalid slipUrl" });
       return;
@@ -206,7 +209,7 @@ module.exports = async function handler(request, response) {
       {
         paid: false,
         reviewStatus: "pending",
-        fileName,
+        fileName: safeFileName,
         slipUrl,
         slipPublicId,
         amount: monthSnap.data().amount,

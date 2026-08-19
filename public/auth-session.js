@@ -69,25 +69,6 @@ export async function signInWithGoogleToken(idToken) {
   return { nuid, name, email };
 }
 
-// Fallback for legacy calls if any remain
-export async function signInAsNuid(nuid) {
-  const res = await fetch("/api/mint-session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nuid })
-  });
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "Sign-in failed");
-  }
-
-  const { token, name, email } = await res.json();
-  await signInWithCustomToken(auth, token);
-  touchActivity();
-  return { name, email };
-}
-
 // Use on protected pages (logined/, stats/) that load after login
 // already happened. Awaits auth.authStateReady() so page refresh
 // or tab switching never triggers a false logout.
