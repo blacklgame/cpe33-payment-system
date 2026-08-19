@@ -6,7 +6,7 @@
    - Add / Edit transaction modal with quantity × price preview.
 ------------------------------------------------------------ */
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-import { auth } from "../firebase.js";
+import { auth } from "./firebase-admin.js";
 import { touchActivity, checkIsInactive, clearActivity } from "../auth-session.js";
 
 // ── URL param ─────────────────────────────────────────────────

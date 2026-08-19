@@ -9,7 +9,7 @@
    - Clicking an event card navigates to event-detail.html?id=xxx
 ------------------------------------------------------------ */
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-import { auth } from "../firebase.js";
+import { auth } from "./firebase-admin.js";
 import { touchActivity, checkIsInactive, clearActivity } from "../auth-session.js";
 
 // ── DOM refs ─────────────────────────────────────────────────

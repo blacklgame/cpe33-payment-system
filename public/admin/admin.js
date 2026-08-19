@@ -53,7 +53,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-import { auth } from "../firebase.js";
+import { auth } from "./firebase-admin.js";
 
 const signInBtn = document.querySelector(".btn-google");
 const btnIconWrapper = signInBtn.querySelector(".google-icon-wrapper");
