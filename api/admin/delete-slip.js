@@ -27,6 +27,7 @@ const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { isValidNuid } = require("../_lib/validate");
 const { isValidMonthId } = require("../_lib/months");
+const { writeAuditLog } = require("../_lib/audit");
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
@@ -64,9 +65,6 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    // Independently verifies the token with Firebase's servers -- this
-    // cannot be spoofed by editing client-side JS, unlike a check that
-    // only ran in the browser.
     const decoded = await admin.auth().verifyIdToken(idToken);
     const email = (decoded.email || "").toLowerCase();
     const isGoogle = decoded.firebase && decoded.firebase.sign_in_provider === "google.com";
@@ -91,9 +89,6 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    // Look up the slip's public_id ourselves via the Admin SDK rather
-    // than trusting whatever the client sends -- this way a tampered
-    // request can't be used to delete an arbitrary Cloudinary asset.
     const db = admin.firestore();
     const paymentRef = db.collection("payments").doc(nuid).collection("months").doc(monthId);
     const paymentSnap = await paymentRef.get();
@@ -111,15 +106,6 @@ module.exports = async function handler(request, response) {
     await paymentRef.set(
       {
         paid: false,
-        // BUG FIX: this used to leave reviewStatus:"pending" in place
-        // after a delete, since only the slip fields below were
-        // cleared. The student's Stats page reads reviewStatus on its
-        // own (not "does a slip still exist"), so a deleted slip kept
-        // showing as "รอตรวจสอบ / pending review" forever with no way
-        // to re-upload out of that state from the student's point of
-        // view. Explicitly setting it to "rejected" here (rather than
-        // just deleting the field) also lets the Stats page tell a
-        // rejected slip apart from someone who never uploaded one.
         reviewStatus: "rejected",
         slipUrl: admin.firestore.FieldValue.delete(),
         slipPublicId: admin.firestore.FieldValue.delete(),
@@ -130,9 +116,12 @@ module.exports = async function handler(request, response) {
       { merge: true }
     );
 
+    await writeAuditLog(db, "delete_slip", email, { nuid, monthId, publicId: publicId || null });
+
     response.status(200).json({ ok: true });
   } catch (err) {
     console.error("Admin delete-slip failed:", err);
     response.status(500).json({ error: "Internal server error" });
   }
 };
+

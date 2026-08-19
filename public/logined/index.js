@@ -1,8 +1,8 @@
 /* ------------------------------------------------------------
    1) Sync this page to whichever Nu ID logged in
 ------------------------------------------------------------ */
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { db, auth } from "../firebase.js";
 import { ensureSignedInAsNuid } from "../auth-session.js";
 
@@ -25,9 +25,14 @@ if (!raw) {
   }
 }
 
-document.getElementById("logoutLink").addEventListener("click", (e) => {
+document.getElementById("logoutLink").addEventListener("click", async (e) => {
   e.preventDefault();
   sessionStorage.removeItem("cpe33_user");
+  try {
+    await signOut(auth);
+  } catch (err) {
+    console.error("Sign-out error:", err);
+  }
   window.location.href = "../index.html";
 });
 

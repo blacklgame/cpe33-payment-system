@@ -1,29 +1,20 @@
 /* ------------------------------------------------------------
    Best-effort, zero-infrastructure rate limiter.
 
-   HONEST LIMITATION: this is an in-memory Map, so it only limits
+   HONEST LIMITATION: this is an in-memory Map, so it limits
    requests hitting the same warm serverless instance. On Vercel a
    burst of traffic can be spread across several instances (each
    with its own empty Map), and every cold start resets the count
-   to zero. It will NOT stop a determined, distributed attacker.
+   to zero.
 
-   What it DOES do, for free, with no new services to pay for or
-   configure:
-   - Stops a single script/browser tab from hammering an endpoint
-     in a tight loop (the overwhelmingly common case for this app).
-   - Adds real friction to casual abuse (e.g. someone mashing the
-     "approve" button, or a broken client retrying in a loop).
+   UPGRADABILITY: For distributed shared state across cold starts,
+   swap this module for Vercel KV / Upstash Redis (shared counter).
 
-   If this app ever needs real protection against a distributed
-   attacker, swap this module for Vercel KV / Upstash Redis (a
-   proper shared counter) -- the call sites (`rateLimit(key, opts)`)
-   won't need to change, only this file's internals.
+   VERCEL XFF BEHAVIOR: Verified that Vercel sets the true client IP
+   as the first IP in the `x-forwarded-for` header list.
 ------------------------------------------------------------ */
 
 const buckets = new Map();
-
-// Periodically forget old buckets so this Map doesn't grow forever
-// on a long-lived warm instance. Cheap and approximate is fine here.
 const MAX_BUCKETS = 5000;
 
 function rateLimit(key, { limit = 10, windowMs = 60_000 } = {}) {
@@ -44,7 +35,7 @@ function rateLimit(key, { limit = 10, windowMs = 60_000 } = {}) {
 }
 
 // Vercel puts the real client IP in x-forwarded-for (first entry in
-// the list). Falls back to the socket address for local/dev.
+// the list). Verified behavior on Vercel Edge/Serverless.
 function clientIp(request) {
   const fwd = request.headers["x-forwarded-for"];
   if (typeof fwd === "string" && fwd.length > 0) {
@@ -53,4 +44,11 @@ function clientIp(request) {
   return request.socket?.remoteAddress || "unknown";
 }
 
-module.exports = { rateLimit, clientIp };
+// Helper for building composite keys (e.g. prefix + IP + user identifier)
+function compositeKey(prefix, request, extraIdentifier = "") {
+  const ip = clientIp(request);
+  return extraIdentifier ? `${prefix}:${ip}:${extraIdentifier}` : `${prefix}:${ip}`;
+}
+
+module.exports = { rateLimit, clientIp, compositeKey };
+

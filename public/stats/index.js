@@ -3,7 +3,8 @@
       key the login page + home page use), e.g. "69360303"
 ------------------------------------------------------------ */
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-import { db } from "../firebase.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+import { db, auth } from "../firebase.js";
 import { ensureSignedInAsNuid } from "../auth-session.js";
 
 // Same three states + colors the admin dashboard uses, so a
@@ -205,8 +206,13 @@ if (!raw) {
   }
 }
 
-document.getElementById("logoutLink").addEventListener("click", (e) => {
+document.getElementById("logoutLink").addEventListener("click", async (e) => {
   e.preventDefault();
   sessionStorage.removeItem("cpe33_user");
+  try {
+    await signOut(auth);
+  } catch (err) {
+    console.error("Sign-out error:", err);
+  }
   window.location.href = "../index.html";
 });

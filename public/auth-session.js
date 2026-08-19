@@ -1,9 +1,10 @@
 /* ------------------------------------------------------------
    Signs the browser into Firebase Auth with uid == nuid, via
-   /api/mint-session (see that file for what this does and doesn't
-   guarantee). Every student-facing page that reads or writes
-   payments/{nuid} needs to call this first, since firestore.rules
-   now requires request.auth.uid == nuid to read that doc.
+   /api/mint-session after verifying the user's Google ID token
+   against the Firestore "users" roster whitelist.
+
+   Every student-facing page that reads or writes payments/{nuid}
+   needs request.auth.uid == nuid for firestore.rules checks.
 ------------------------------------------------------------ */
 import {
   onAuthStateChanged,
@@ -11,6 +12,28 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { auth } from "./firebase.js";
 
+export async function signInWithGoogleToken(idToken) {
+  const res = await fetch("/api/mint-session", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${idToken}`
+    }
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err = new Error(body.error || "Sign-in failed");
+    err.status = res.status;
+    throw err;
+  }
+
+  const { token, nuid, name, email } = await res.json();
+  await signInWithCustomToken(auth, token);
+  return { nuid, name, email };
+}
+
+// Fallback for legacy calls if any remain
 export async function signInAsNuid(nuid) {
   const res = await fetch("/api/mint-session", {
     method: "POST",
@@ -29,8 +52,7 @@ export async function signInAsNuid(nuid) {
 }
 
 // Use on protected pages (logined/, stats/) that load after login
-// already happened. Avoids re-minting a session on every page load
-// if the existing Firebase Auth session already matches this nuid.
+// already happened.
 export function ensureSignedInAsNuid(nuid) {
   return new Promise((resolve, reject) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -39,12 +61,8 @@ export function ensureSignedInAsNuid(nuid) {
         resolve();
         return;
       }
-      try {
-        await signInAsNuid(nuid);
-        resolve();
-      } catch (err) {
-        reject(err);
-      }
+      reject(new Error("User not signed in"));
     });
   });
 }
+

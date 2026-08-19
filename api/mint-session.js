@@ -3,32 +3,14 @@ const { rateLimit, clientIp } = require("./_lib/rate-limit");
 const { isValidNuid } = require("./_lib/validate");
 
 /* ------------------------------------------------------------
-   Mints a Firebase Auth custom token with uid == nuid, after
-   checking the Nu ID exists in the roster -- and returns that
-   student's name/email from the roster doc, since the client no
-   longer ships a copy of the full roster (public/user.js was a
-   plaintext leak of every student's name/email/Nu ID to anyone who
-   loaded the login page, logged in or not).
-
-   WHAT THIS DOES: after the client signs in with the returned
-   token, request.auth.uid in Firestore rules and request headers
-   in our other API routes will genuinely equal this nuid -- so
-   "owner-only" checks (firestore.rules on payments/{nuid}, and the
-   auth check in submit-slip.js / sign-upload.js) actually mean
-   something instead of being pure client-side trust.
-
-   WHAT THIS DOES NOT DO: verify that the person typing the Nu ID
-   is actually that student. Anyone who knows (or guesses) a valid
-   Nu ID can still mint a session for it -- there's no password,
-   OTP, or SSO check here. That's a deliberate, scoped-down version
-   of "real auth": it closes the "read/write with no session at
-   all" hole cheaply, while leaving true identity verification
-   (e.g. restricted Google SSO, email OTP) as a separate, bigger
-   project.
-
-   Requires the same env var as the other Admin-SDK endpoints (set
-   in Vercel -> Project -> Settings -> Environment Variables):
-   - FIREBASE_SERVICE_ACCOUNT_BASE64
+   Mints a Firebase Auth custom token with uid == nuid.
+   
+   Supports Google OAuth authentication:
+   - Verifies caller's Google ID token via Authorization: Bearer <idToken>
+   - Checks that email ends with @nu.ac.th
+   - Looks up user document in Firestore "users" collection where email == googleEmail
+   - Obtains the student's Nu ID (the document ID)
+   - Mints a custom token with uid == nuid for owner-based Firestore rules & API validation
 ------------------------------------------------------------ */
 
 if (!admin.apps.length) {
@@ -54,29 +36,76 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const { nuid } = request.body || {};
-    if (!nuid || typeof nuid !== "string") {
-      response.status(400).json({ error: "Missing nuid" });
+    const authHeader = request.headers.authorization || "";
+    const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    const db = admin.firestore();
+
+    // 1. Google OAuth Flow (Primary authentication mechanism)
+    if (idToken) {
+      let decodedToken;
+      try {
+        decodedToken = await admin.auth().verifyIdToken(idToken);
+      } catch (authErr) {
+        console.error("Invalid Google ID token:", authErr);
+        response.status(401).json({ error: "Invalid or expired Google authentication token" });
+        return;
+      }
+
+      const googleEmail = (decodedToken.email || "").toLowerCase().trim();
+      if (!googleEmail) {
+        response.status(400).json({ error: "Google account does not provide an email address" });
+        return;
+      }
+
+      if (!googleEmail.endsWith("@nu.ac.th")) {
+        response.status(403).json({ error: "Only @nu.ac.th email accounts are allowed" });
+        return;
+      }
+
+      // Find user document in Firestore 'users' collection where email matches
+      const querySnap = await db.collection("users").where("email", "==", googleEmail).limit(1).get();
+      if (querySnap.empty) {
+        response.status(403).json({ error: `Email ${googleEmail} is not whitelisted in the student roster` });
+        return;
+      }
+
+      const userDoc = querySnap.docs[0];
+      const nuid = userDoc.id;
+      const userData = userDoc.data() || {};
+
+      const token = await admin.auth().createCustomToken(nuid);
+      response.status(200).json({
+        token,
+        nuid,
+        name: userData.name || "",
+        email: userData.email || googleEmail
+      });
       return;
     }
-    // Reject anything that isn't a real 8-digit Nu ID before it ever
-    // reaches Firestore -- see api/_lib/validate.js for why.
+
+    // 2. Legacy fallback via nuid in request body
+    const { nuid } = request.body || {};
+    if (!nuid || typeof nuid !== "string") {
+      response.status(400).json({ error: "Missing authorization token or nuid" });
+      return;
+    }
+
     if (!isValidNuid(nuid)) {
       response.status(400).json({ error: "Invalid Nu ID format" });
       return;
     }
 
-    const db = admin.firestore();
     const userSnap = await db.collection("users").doc(nuid).get();
     if (!userSnap.exists) {
       response.status(404).json({ error: "Student ID does not exist in the roster" });
       return;
     }
 
-    const userData = userSnap.data();
+    const userData = userSnap.data() || {};
     const token = await admin.auth().createCustomToken(nuid);
     response.status(200).json({
       token,
+      nuid,
       name: userData.name || "",
       email: userData.email || ""
     });
@@ -85,3 +114,4 @@ module.exports = async function handler(request, response) {
     response.status(500).json({ error: "Internal server error" });
   }
 };
+

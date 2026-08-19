@@ -17,6 +17,7 @@ const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { isValidNuid } = require("../_lib/validate");
 const { isValidMonthId } = require("../_lib/months");
+const { writeAuditLog } = require("../_lib/audit");
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
@@ -74,30 +75,33 @@ module.exports = async function handler(request, response) {
 
     const db = admin.firestore();
     const paymentRef = db.collection("payments").doc(nuid).collection("months").doc(monthId);
-    const paymentSnap = await paymentRef.get();
 
-    // Require reviewStatus === "pending", not just "a slipUrl exists".
-    // Previously this only checked slipUrl was present, so an already
-    // -approved slip (still has slipUrl) or a slip an admin had just
-    // rejected in the same instant could both be re-approved by a
-    // stale/duplicate click -- e.g. two admin tabs open, or a retried
-    // request -- silently re-running approvedBy/approvedAt with no
-    // error. Pinning this to reviewStatus makes approve a one-way,
-    // one-shot transition from "pending" only.
-    if (!paymentSnap.exists || paymentSnap.data().reviewStatus !== "pending") {
-      response.status(404).json({ error: "No pending slip for this nuid" });
-      return;
+    try {
+      await db.runTransaction(async (transaction) => {
+        const paymentSnap = await transaction.get(paymentRef);
+        if (!paymentSnap.exists || paymentSnap.data().reviewStatus !== "pending") {
+          throw new Error("NO_PENDING_SLIP");
+        }
+        transaction.set(
+          paymentRef,
+          {
+            paid: true,
+            reviewStatus: "approved",
+            approvedBy: email,
+            approvedAt: admin.firestore.FieldValue.serverTimestamp()
+          },
+          { merge: true }
+        );
+      });
+    } catch (txErr) {
+      if (txErr.message === "NO_PENDING_SLIP") {
+        response.status(404).json({ error: "No pending slip for this nuid" });
+        return;
+      }
+      throw txErr;
     }
 
-    await paymentRef.set(
-      {
-        paid: true,
-        reviewStatus: "approved",
-        approvedBy: email,
-        approvedAt: admin.firestore.FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
+    await writeAuditLog(db, "approve_slip", email, { nuid, monthId });
 
     response.status(200).json({ ok: true });
   } catch (err) {
@@ -105,3 +109,4 @@ module.exports = async function handler(request, response) {
     response.status(500).json({ error: "Internal server error" });
   }
 };
+

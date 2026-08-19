@@ -75,15 +75,32 @@ function setSigningInState(isSigningIn) {
   const params = new URLSearchParams(window.location.search);
   if (params.get("error") !== "forbidden") return;
   const email = params.get("email") || "";
+  errorText.replaceChildren();
+
+  const title = document.createElement("strong");
+  title.textContent = email ? `อีเมล ${email} ไม่มีสิทธิ์เข้าถึงระบบผู้ดูแล` : "บัญชีนี้ไม่มีสิทธิ์เข้าถึงระบบผู้ดูแล";
+
+  const br1 = document.createElement("br");
+  const detail = document.createElement("span");
+  detail.textContent = "กรุณาเพิ่มอีเมลนี้ใน Firebase → Firestore → คอลเลกชัน ";
+
+  const code = document.createElement("code");
+  code.textContent = "admins";
+
+  const detailEnd = document.createTextNode(" แล้วลองใหม่");
+
+  errorText.appendChild(title);
+  errorText.appendChild(br1);
+  errorText.appendChild(detail);
+  errorText.appendChild(code);
+  errorText.appendChild(detailEnd);
+
   if (email) {
-    errorText.innerHTML =
-      `<strong>อีเมล ${email} ไม่มีสิทธิ์เข้าถึงระบบผู้ดูแล</strong><br>` +
-      `กรุณาเพิ่มอีเมลนี้ใน Firebase → Firestore → คอลเลกชัน <code>admins</code> แล้วลองใหม่<br>` +
-      `<small>(Email "${email}" is not whitelisted. Add it to the Firestore "admins" collection.)</small>`;
-  } else {
-    errorText.innerHTML =
-      `<strong>บัญชีนี้ไม่มีสิทธิ์เข้าถึงระบบผู้ดูแล</strong><br>` +
-      `กรุณาใช้อีเมลที่ได้รับอนุญาต หรือเพิ่มอีเมลของคุณใน Firebase → Firestore → คอลเลกชัน <code>admins</code>`;
+    const br2 = document.createElement("br");
+    const small = document.createElement("small");
+    small.textContent = `(Email "${email}" is not whitelisted. Add it to the Firestore "admins" collection.)`;
+    errorText.appendChild(br2);
+    errorText.appendChild(small);
   }
 })();
 

@@ -23,3 +23,19 @@ serviceAccountKey.json
 # config/admin-emails.example.json (placeholder values) instead.
 config/admin-emails.json
 
+# Vercel deployment & CLI metadata
+.vercel/
+
+# IDE & Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Credentials & Keys
+*.pem
+*.key
+*.crt
+serviceAccountKey*.json
+
+

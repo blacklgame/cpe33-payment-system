@@ -27,6 +27,7 @@ const admin = require("firebase-admin");
 const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { isValidNuid } = require("../_lib/validate");
+const { writeAuditLog } = require("../_lib/audit");
 
 const VALID_STATUSES = ["normal", "termination", "unpaid"];
 
@@ -60,9 +61,6 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    // Independently verifies the token with Firebase's servers -- this
-    // cannot be spoofed by editing client-side JS, unlike a check that
-    // only ran in the browser.
     const decoded = await admin.auth().verifyIdToken(idToken);
     const email = (decoded.email || "").toLowerCase();
     const isGoogle = decoded.firebase && decoded.firebase.sign_in_provider === "google.com";
@@ -108,9 +106,12 @@ module.exports = async function handler(request, response) {
       { merge: true }
     );
 
+    await writeAuditLog(db, "set_status", email, { nuid, studentStatus: status });
+
     response.status(200).json({ ok: true });
   } catch (err) {
     console.error("Admin set-status failed:", err);
     response.status(500).json({ error: "Internal server error" });
   }
 };
+

@@ -181,14 +181,17 @@ module.exports = async function handler(req, res) {
         if (!label || typeof label !== "string" || label.trim().length === 0) {
           res.status(400).json({ error: "label is required" }); return;
         }
+        if (label.trim().length > 200) {
+          res.status(400).json({ error: "label too long (max 200 characters)" }); return;
+        }
 
         const amountNum = Number(amount);
-        if (!Number.isFinite(amountNum) || amountNum <= 0) {
-          res.status(400).json({ error: "amount must be a positive number" }); return;
+        if (!Number.isFinite(amountNum) || amountNum <= 0 || amountNum > 10_000_000) {
+          res.status(400).json({ error: "amount must be a positive number up to 10,000,000" }); return;
         }
 
         const qty = Number(quantity);
-        const quantityNum = Number.isFinite(qty) && qty > 0 ? Math.floor(qty) : 1;
+        const quantityNum = Number.isFinite(qty) && qty >= 1 ? Math.min(1000, Math.floor(qty)) : 1;
         const totalAmount = amountNum * quantityNum;
 
         const eventRef = db.collection("events").doc(eventId);

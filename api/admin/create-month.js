@@ -97,6 +97,13 @@ module.exports = async function handler(request, response) {
       { merge: true }
     );
 
+    await writeAuditLog(db, existing.exists ? "update_month" : "create_month", email, {
+      monthId,
+      year: yearNum,
+      month: monthNum,
+      amount: amountNum
+    });
+
     response.status(200).json({ ok: true, monthId });
   } catch (err) {
     console.error("Admin create-month failed:", err);

@@ -1,51 +1,59 @@
-import { signInAsNuid } from "./auth-session.js";
+import { GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+import { auth } from "./firebase.js";
+import { signInWithGoogleToken } from "./auth-session.js";
 
-const form = document.getElementById("loginForm");
-const input = document.getElementById("nuid");
+const signInBtn = document.querySelector(".btn-google");
+const btnIconWrapper = signInBtn.querySelector(".google-icon-wrapper");
+const btnLabel = signInBtn.querySelector(".btn-label");
 const errorText = document.getElementById("errorText");
-const enterBtn = document.getElementById("enterBtn");
+const originalIconHTML = btnIconWrapper.innerHTML;
 
-// Only allow digits while typing
-input.addEventListener("input", () => {
-  input.value = input.value.replace(/\D/g, "");
-  errorText.textContent = "";
-});
+function setSigningInState(isSigningIn) {
+  signInBtn.disabled = isSigningIn;
+  btnLabel.textContent = isSigningIn ? "กำลังเข้าสู่ระบบ..." : "Sign in with NU Account";
+  btnIconWrapper.innerHTML = isSigningIn ? '<span class="spinner"></span>' : originalIconHTML;
+}
 
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const nuid = input.value.trim();
-
-  if (nuid.length === 0) {
-    errorText.textContent = "กรุณากรอกรหัสนิสิต (Nu ID)";
-    return;
+function describeError(err) {
+  if (err.status === 403 || err.message?.includes("roster") || err.message?.includes("whitelisted")) {
+    return `<strong>อีเมลของคุณไม่มีสิทธิ์เข้าถึงระบบ</strong><br><small>(${err.message})</small>`;
   }
+  switch (err.code) {
+    case "auth/popup-blocked":
+      return "เบราว์เซอร์บล็อกป๊อปอัพ กรุณาอนุญาตป๊อปอัพสำหรับเว็บไซต์นี้แล้วลองใหม่";
+    case "auth/popup-closed-by-user":
+    case "auth/cancelled-popup-request":
+      return "หน้าต่างเข้าสู่ระบบถูกปิดก่อนเสร็จสิ้น กรุณาลองใหม่อีกครั้ง";
+    case "auth/network-request-failed":
+      return "การเชื่อมต่อขัดข้อง กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่";
+    case "auth/operation-not-supported-in-this-environment":
+      return "เบราว์เซอร์นี้ไม่รองรับการล็อกอิน Google (เช่น เปิดจากแอป LINE/Facebook/Chrome บน iOS) กรุณาเปิดลิงก์นี้ใน Safari หรือเบราว์เซอร์บน PC โดยตรง";
+    default:
+      return err.message || "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+  }
+}
 
-  enterBtn.disabled = true;
-  enterBtn.textContent = "กำลังเข้าสู่ระบบ...";
+signInBtn.addEventListener("click", async () => {
+  errorText.innerHTML = "";
+  setSigningInState(true);
 
-  let name, email;
   try {
-    // Binds this browser's Firebase Auth session to this nuid (so
-    // Firestore rules and our API routes can check ownership on
-    // later pages), and confirms the nuid is on the roster -- there's
-    // no local copy of the roster in the browser to check against
-    // anymore (public/user.js used to leak every student's name/
-    // email/Nu ID to anyone who loaded this page, logged in or not).
-    ({ name, email } = await signInAsNuid(nuid));
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ hd: "nu.ac.th", prompt: "select_account" });
+
+    const result = await signInWithPopup(auth, provider);
+    const idToken = await result.user.getIdToken();
+
+    const { nuid, name, email } = await signInWithGoogleToken(idToken);
+
+    // Save user details for session persistence across pages
+    sessionStorage.setItem("cpe33_user", JSON.stringify({ id: nuid, name, email }));
+
+    window.location.href = "./logined/index.html";
   } catch (err) {
     console.error("Sign-in failed:", err);
-    errorText.textContent = err.message === "Student ID does not exist in the roster"
-      ? "ไม่พบรหัสนิสิตนี้ในระบบ กรุณาตรวจสอบอีกครั้ง"
-      : "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
-    enterBtn.disabled = false;
-    enterBtn.textContent = "Enter";
-    return;
+    errorText.innerHTML = describeError(err);
+    setSigningInState(false);
   }
-
-  // Save the logged-in user so the next page can sync to it
-  sessionStorage.setItem("cpe33_user", JSON.stringify({ id: nuid, name, email }));
-
-  // Go to the logged-in page
-  window.location.href = "./logined/index.html";
 });
+

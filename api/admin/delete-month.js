@@ -66,7 +66,10 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    await admin.firestore().collection("months").doc(monthId).delete();
+    const db = admin.firestore();
+    await db.collection("months").doc(monthId).delete();
+
+    await writeAuditLog(db, "delete_month", email, { monthId });
 
     response.status(200).json({ ok: true });
   } catch (err) {
