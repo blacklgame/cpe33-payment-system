@@ -150,24 +150,20 @@ async function handleAuthState(user) {
     return;
   }
 
-  if (user) {
+  if (user && user.email) {
     currentAdminUser = user;
     markAdminSeen();
     touchActivity();
 
-    if (everConfirmedAdmin) return;
-    everConfirmedAdmin = true;
-
     welcomeMsg.textContent = `Welcome ${user.email}`;
     mainContent.style.display = "flex";
-    loadDashboard();
+    if (!everConfirmedAdmin) {
+      loadDashboard();
+    }
     return;
   }
 
-  if (!wasAdminSeenBefore()) {
-    goToLogin();
-    return;
-  }
+  goToLogin();
 }
 
 onAuthStateChanged(auth, handleAuthState);
@@ -297,10 +293,6 @@ async function loadDashboard() {
     const res = await authorizedFetch("/api/admin/list-data", {});
 
     if (res.status === 401 || res.status === 403) {
-      if (everConfirmedAdmin) {
-        loadingText.textContent = "ไม่สามารถเชื่อมต่อได้ กรุณาลองรีเฟรชหน้านี้";
-        return;
-      }
       let rejectedEmail = "";
       try {
         const body = await res.json();

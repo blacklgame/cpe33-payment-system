@@ -69,7 +69,7 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  if (!user) {
+  if (!user || !user.email) {
     goToLogin();
     return;
   }

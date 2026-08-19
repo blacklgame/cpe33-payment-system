@@ -156,12 +156,12 @@ if (!raw) {
       });
   }
 
-  let loaded = false;
-  onAuthStateChanged(auth, (firebaseUser) => {
-    if (loaded) return;
-    loaded = true;
+  (async () => {
+    if (typeof auth.authStateReady === "function") {
+      await auth.authStateReady();
+    }
     loadStatsData();
-  });
+  })();
 
   let selectedStatsYear = null;
 

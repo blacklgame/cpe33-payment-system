@@ -53,65 +53,74 @@ main {
 .donut-card.card-expense { --card-glow: rgba(239, 68, 68,  0.12); }
 .donut-card.card-balance { --card-glow: rgba(34, 211, 238, 0.12); }
 
-/* SVG donut wrapper */
+/* SVG Pie Chart wrapper */
 .donut-svg-wrap {
   position: relative;
-  width: 170px;
-  height: 170px;
+  width: 180px;
+  height: 180px;
   flex-shrink: 0;
+  border-radius: 50%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 .donut-svg-wrap svg {
   width: 100%;
   height: 100%;
   transform: rotate(-90deg);
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+  border-radius: 50%;
 }
 
 .donut-bg {
-  fill: none;
+  fill: var(--surface-2);
   stroke: var(--surface-2);
-  stroke-width: 20;
+  stroke-width: 31.83;
 }
 
 .donut-fg {
   fill: none;
-  stroke-width: 20;
-  stroke-linecap: round;
+  stroke-width: 31.83;
+  stroke-linecap: butt;
   transition: stroke-dasharray 0.8s var(--ease);
 }
 
-.donut-card.card-income  .donut-fg { stroke: var(--ok);      filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.4)); }
-.donut-card.card-expense .donut-fg { stroke: var(--danger);  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.4)); }
-.donut-card.card-balance .donut-fg { stroke: var(--accent-2); filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.4)); }
+.donut-card.card-income  .donut-fg { stroke: #34d399; }
+.donut-card.card-expense .donut-fg { stroke: #f87171; }
+.donut-card.card-balance .donut-fg { stroke: #38bdf8; }
 
-/* Centre label inside donut */
+/* Centre percentage badge over solid pie chart */
 .donut-center {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  background: rgba(14, 16, 23, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-pill);
+  padding: 8px 18px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
 }
 
 .donut-pct {
-  font-size: 1.6rem;
+  font-size: 1.45rem;
   font-weight: 800;
   letter-spacing: -0.03em;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-.donut-card.card-income  .donut-pct { color: var(--ok);      }
-.donut-card.card-expense .donut-pct { color: var(--danger);  }
-.donut-card.card-balance .donut-pct { color: var(--accent-2); }
+.donut-card.card-income  .donut-pct { color: #34d399; }
+.donut-card.card-expense .donut-pct { color: #f87171; }
+.donut-card.card-balance .donut-pct { color: #38bdf8; }
 
 .donut-sub {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--text-faint);
   font-weight: 600;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 /* Text below donut */

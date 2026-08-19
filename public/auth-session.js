@@ -108,7 +108,6 @@ export async function ensureSignedInAsNuid(nuid) {
     if (auth.currentUser.uid === nuid) {
       return auth.currentUser;
     }
-    // If signed in with Google Auth, try auto-minting the custom token for this nuid
     try {
       const googleIdToken = await auth.currentUser.getIdToken();
       await signInWithGoogleToken(googleIdToken);
@@ -121,12 +120,28 @@ export async function ensureSignedInAsNuid(nuid) {
   }
 
   return new Promise((resolve, reject) => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const timeout = setTimeout(() => {
       unsubscribe();
-      if (user && user.uid === nuid) {
-        resolve(user);
-      } else {
-        reject(new Error("User not signed in"));
+      reject(new Error("User not signed in"));
+    }, 5000);
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        if (user.uid === nuid) {
+          clearTimeout(timeout);
+          unsubscribe();
+          resolve(user);
+        } else {
+          try {
+            const googleIdToken = await user.getIdToken();
+            await signInWithGoogleToken(googleIdToken);
+            if (auth.currentUser && auth.currentUser.uid === nuid) {
+              clearTimeout(timeout);
+              unsubscribe();
+              resolve(auth.currentUser);
+            }
+          } catch (_) {}
+        }
       }
     });
   });

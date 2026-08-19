@@ -79,7 +79,7 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  if (!user) { goToLogin(); return; }
+  if (!user || !user.email) { goToLogin(); return; }
 
   currentUser = user;
   touchActivity();

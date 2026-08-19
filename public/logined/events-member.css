@@ -35,47 +35,56 @@
 
 .donut-svg-wrap-m {
   position: relative;
-  width: 105px;
-  height: 105px;
+  width: 110px;
+  height: 110px;
   flex-shrink: 0;
+  border-radius: 50%;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
 .donut-svg-wrap-m svg {
   width: 100%;
   height: 100%;
   transform: rotate(-90deg);
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
+  border-radius: 50%;
 }
 
 .donut-bg-m {
-  fill: none;
+  fill: var(--surface-2);
   stroke: var(--surface-2);
-  stroke-width: 18;
+  stroke-width: 31.83;
 }
 
 .donut-fg-m {
   fill: none;
-  stroke-width: 18;
-  stroke-linecap: round;
+  stroke-width: 31.83;
+  stroke-linecap: butt;
   transition: stroke-dasharray 0.8s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
-.fg-income  { stroke: var(--ok);      filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.4)); }
-.fg-expense { stroke: var(--danger);  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.4)); }
-.fg-balance { stroke: var(--accent-2); filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.4)); }
+.fg-income  { stroke: #34d399; }
+.fg-expense { stroke: #f87171; }
+.fg-balance { stroke: #38bdf8; }
 
 .donut-center-m {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(14, 16, 23, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
 }
 
 .donut-pct-m {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 800;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 .donut-label-m {

@@ -251,20 +251,12 @@ function populateMonthPicker(months, statusByMonth) {
 // causing every Firestore read (which requires auth.uid == nuid) to
 // fail with a permission-denied error and show "โหลดข้อมูลไม่สำเร็จ".
 if (user) {
-  let loaded = false;
-  onAuthStateChanged(auth, (firebaseUser) => {
-    if (loaded) return; // only run once
-    if (firebaseUser && firebaseUser.uid === user.id) {
-      loaded = true;
-      loadMonthsAndStatus();
-    } else if (!firebaseUser) {
-      // Firebase hasn't restored yet — authStateReady inside
-      // ensureSignedInAsNuid will handle the wait. Kick it off anyway
-      // so the page loads as soon as auth is ready.
-      loaded = true;
-      loadMonthsAndStatus();
+  (async () => {
+    if (typeof auth.authStateReady === "function") {
+      await auth.authStateReady();
     }
-  });
+    await loadMonthsAndStatus();
+  })();
 }
 
 fileInput.addEventListener("change", () => {
