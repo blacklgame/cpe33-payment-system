@@ -219,27 +219,80 @@ function computeMonthStats(monthId, monthlyPayments) {
   return { paidCount, totalCollected, pendingCount, totalPending };
 }
 
+let selectedAdminYearFilter = null;
+
 function renderMonths(months, monthlyPayments) {
   if (months.length === 0) {
     totalsCard.style.display = "none";
     monthsContainer.innerHTML = '<p class="empty-months-note">ยังไม่มีเดือนที่สร้างไว้ กรอกฟอร์มด้านบนเพื่อเพิ่มเดือนแรก</p>';
+    const oldTabs = document.getElementById("adminMonthsYearTabs");
+    if (oldTabs) oldTabs.remove();
     return;
   }
 
   let grandCollected = 0;
   let grandPending = 0;
 
-  monthsContainer.innerHTML = "";
   months.forEach((m) => {
     const stats = computeMonthStats(m.id, monthlyPayments);
     grandCollected += stats.totalCollected;
     grandPending += stats.totalPending;
-    monthsContainer.appendChild(buildMonthCard(m, stats));
   });
 
   grandTotalCollected.textContent = `${grandCollected.toLocaleString("th-TH")} บาท`;
   grandTotalPending.textContent = `${grandPending.toLocaleString("th-TH")} บาท`;
   totalsCard.style.display = "block";
+
+  const years = Array.from(new Set(months.map((m) => String(m.year || m.id.split("-")[0])))).sort().reverse();
+
+  if (!selectedAdminYearFilter || (!years.includes(selectedAdminYearFilter) && selectedAdminYearFilter !== "all")) {
+    selectedAdminYearFilter = years[0] || "all";
+  }
+
+  let tabsBar = document.getElementById("adminMonthsYearTabs");
+  if (!tabsBar) {
+    tabsBar = document.createElement("div");
+    tabsBar.id = "adminMonthsYearTabs";
+    tabsBar.className = "year-tabs-container";
+    monthsContainer.parentNode.insertBefore(tabsBar, monthsContainer);
+  }
+  tabsBar.innerHTML = "";
+
+  if (years.length > 1) {
+    const allBtn = document.createElement("button");
+    allBtn.type = "button";
+    allBtn.className = `year-tab-btn ${selectedAdminYearFilter === "all" ? "active" : ""}`;
+    allBtn.textContent = "ทั้งหมด";
+    allBtn.addEventListener("click", () => {
+      selectedAdminYearFilter = "all";
+      renderMonths(months, monthlyPayments);
+    });
+    tabsBar.appendChild(allBtn);
+  }
+
+  years.forEach((yr) => {
+    const yrBtn = document.createElement("button");
+    yrBtn.type = "button";
+    yrBtn.className = `year-tab-btn ${selectedAdminYearFilter === yr ? "active" : ""}`;
+    yrBtn.textContent = `ปี ${yr}`;
+    yrBtn.addEventListener("click", () => {
+      selectedAdminYearFilter = yr;
+      renderMonths(months, monthlyPayments);
+    });
+    tabsBar.appendChild(yrBtn);
+  });
+
+  const filteredMonths = months.filter((m) => {
+    if (selectedAdminYearFilter === "all") return true;
+    const mYr = String(m.year || m.id.split("-")[0]);
+    return mYr === selectedAdminYearFilter;
+  });
+
+  monthsContainer.innerHTML = "";
+  filteredMonths.forEach((m) => {
+    const stats = computeMonthStats(m.id, monthlyPayments);
+    monthsContainer.appendChild(buildMonthCard(m, stats));
+  });
 }
 
 function buildMonthCard(m, stats) {

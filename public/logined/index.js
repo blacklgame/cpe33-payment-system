@@ -131,17 +131,66 @@ function statusKeyFor(record) {
   return "unpaid";
 }
 
+let selectedYearFilter = null;
+
 function renderMonthsList(months, statusByMonth) {
   monthsList.innerHTML = "";
 
   if (months.length === 0) {
     monthsHint.textContent = "ยังไม่มีเดือนที่เปิดให้ชำระเงิน กรุณารอผู้ดูแลระบบเปิดเดือนใหม่";
+    const oldTabs = document.getElementById("loginedYearTabs");
+    if (oldTabs) oldTabs.remove();
     return;
   }
 
   monthsHint.textContent = "รายการเดือนและสถานะการชำระเงินของคุณ";
 
-  months.forEach((m) => {
+  const years = Array.from(new Set(months.map((m) => String(m.year || m.id.split("-")[0])))).sort().reverse();
+
+  if (!selectedYearFilter || (!years.includes(selectedYearFilter) && selectedYearFilter !== "all")) {
+    selectedYearFilter = years[0] || "all";
+  }
+
+  let tabsBar = document.getElementById("loginedYearTabs");
+  if (!tabsBar) {
+    tabsBar = document.createElement("div");
+    tabsBar.id = "loginedYearTabs";
+    tabsBar.className = "year-tabs-container";
+    monthsList.parentNode.insertBefore(tabsBar, monthsList);
+  }
+  tabsBar.innerHTML = "";
+
+  if (years.length > 1) {
+    const allBtn = document.createElement("button");
+    allBtn.type = "button";
+    allBtn.className = `year-tab-btn ${selectedYearFilter === "all" ? "active" : ""}`;
+    allBtn.textContent = "ทั้งหมด";
+    allBtn.addEventListener("click", () => {
+      selectedYearFilter = "all";
+      renderMonthsList(months, statusByMonth);
+    });
+    tabsBar.appendChild(allBtn);
+  }
+
+  years.forEach((yr) => {
+    const yrBtn = document.createElement("button");
+    yrBtn.type = "button";
+    yrBtn.className = `year-tab-btn ${selectedYearFilter === yr ? "active" : ""}`;
+    yrBtn.textContent = `ปี ${yr}`;
+    yrBtn.addEventListener("click", () => {
+      selectedYearFilter = yr;
+      renderMonthsList(months, statusByMonth);
+    });
+    tabsBar.appendChild(yrBtn);
+  });
+
+  const filteredMonths = months.filter((m) => {
+    if (selectedYearFilter === "all") return true;
+    const mYr = String(m.year || m.id.split("-")[0]);
+    return mYr === selectedYearFilter;
+  });
+
+  filteredMonths.forEach((m) => {
     const key = statusKeyFor(statusByMonth[m.id]);
     const meta = MONTH_PILL_META[key];
 

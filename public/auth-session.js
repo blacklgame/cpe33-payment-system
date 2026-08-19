@@ -104,8 +104,20 @@ export async function ensureSignedInAsNuid(nuid) {
 
   touchActivity();
 
-  if (auth.currentUser && auth.currentUser.uid === nuid) {
-    return auth.currentUser;
+  if (auth.currentUser) {
+    if (auth.currentUser.uid === nuid) {
+      return auth.currentUser;
+    }
+    // If signed in with Google Auth, try auto-minting the custom token for this nuid
+    try {
+      const googleIdToken = await auth.currentUser.getIdToken();
+      await signInWithGoogleToken(googleIdToken);
+      if (auth.currentUser && auth.currentUser.uid === nuid) {
+        return auth.currentUser;
+      }
+    } catch (_) {
+      // Ignore auto-mint fallback error and proceed to listener check
+    }
   }
 
   return new Promise((resolve, reject) => {

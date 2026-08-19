@@ -163,17 +163,66 @@ if (!raw) {
     loadStatsData();
   });
 
+  let selectedStatsYear = null;
+
   function renderMonthsList(months, statusByMonth) {
     monthsList.innerHTML = "";
 
     if (months.length === 0) {
       monthsHint.textContent = "ยังไม่มีเดือนที่เปิดให้ชำระเงิน";
+      const oldTabs = document.getElementById("statsYearTabs");
+      if (oldTabs) oldTabs.remove();
       return;
     }
 
     monthsHint.textContent = "";
 
-    months.forEach((m) => {
+    const years = Array.from(new Set(months.map((m) => String(m.year || m.id.split("-")[0])))).sort().reverse();
+
+    if (!selectedStatsYear || (!years.includes(selectedStatsYear) && selectedStatsYear !== "all")) {
+      selectedStatsYear = years[0] || "all";
+    }
+
+    let tabsBar = document.getElementById("statsYearTabs");
+    if (!tabsBar) {
+      tabsBar = document.createElement("div");
+      tabsBar.id = "statsYearTabs";
+      tabsBar.className = "year-tabs-container";
+      monthsList.parentNode.insertBefore(tabsBar, monthsList);
+    }
+    tabsBar.innerHTML = "";
+
+    if (years.length > 1) {
+      const allBtn = document.createElement("button");
+      allBtn.type = "button";
+      allBtn.className = `year-tab-btn ${selectedStatsYear === "all" ? "active" : ""}`;
+      allBtn.textContent = "ทั้งหมด";
+      allBtn.addEventListener("click", () => {
+        selectedStatsYear = "all";
+        renderMonthsList(months, statusByMonth);
+      });
+      tabsBar.appendChild(allBtn);
+    }
+
+    years.forEach((yr) => {
+      const yrBtn = document.createElement("button");
+      yrBtn.type = "button";
+      yrBtn.className = `year-tab-btn ${selectedStatsYear === yr ? "active" : ""}`;
+      yrBtn.textContent = `ปี ${yr}`;
+      yrBtn.addEventListener("click", () => {
+        selectedStatsYear = yr;
+        renderMonthsList(months, statusByMonth);
+      });
+      tabsBar.appendChild(yrBtn);
+    });
+
+    const filteredMonths = months.filter((m) => {
+      if (selectedStatsYear === "all") return true;
+      const mYr = String(m.year || m.id.split("-")[0]);
+      return mYr === selectedStatsYear;
+    });
+
+    filteredMonths.forEach((m) => {
       const record = statusByMonth[m.id];
       const key = statusKeyFor(record);
       const meta = MONTH_PILL_META[key];
