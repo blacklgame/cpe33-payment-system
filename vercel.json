@@ -1,5 +1,11 @@
 {
   "outputDirectory": "public",
+  "rewrites": [
+    {
+      "source": "/__/auth/:path*",
+      "destination": "https://cpe33-79979.firebaseapp.com/__/auth/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
