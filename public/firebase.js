@@ -17,7 +17,7 @@ import {
 
 const firebaseConfig = {
   apiKey: "AIzaSyCUrDGPZq3gpD7ccee_CCaT89KUeSjmUnQ",
-  authDomain: window.location.hostname || "cpe33-79979.firebaseapp.com",
+  authDomain: "cpe33-79979.firebaseapp.com",
   projectId: "cpe33-79979",
   storageBucket: "cpe33-79979.firebasestorage.app",
   messagingSenderId: "130126006962",
