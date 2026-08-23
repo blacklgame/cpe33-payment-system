@@ -3,15 +3,10 @@
       key the login page + home page use), e.g. "69360303"
 ------------------------------------------------------------ */
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { db, auth } from "../firebase.js";
 import { ensureSignedInAsNuid, clearActivity } from "../auth-session.js";
 
-// Same three states + colors the admin dashboard uses, so a
-// student sees the exact same label/color an admin set for them.
-// "normal"/"unpaid"/"pending" here describe the OVERALL picture
-// across every month (see computeOverallStatus below) unless an
-// admin has set studentStatus to "termination", which always wins.
 const STATUS_META = {
   normal: {
     label: "ปกติ",
@@ -24,6 +19,12 @@ const STATUS_META = {
     pillClass: "status-termination",
     cardClass: "card-termination",
     note: "สถานะนิสิตของคุณถูกตั้งเป็น \"พ้นสภาพ\" หากคิดว่าไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ"
+  },
+  partial: {
+    label: "ผ่อนจ่าย",
+    pillClass: "status-partial",
+    cardClass: "card-partial",
+    note: "คุณมียอดผ่อนชำระค้างอยู่ กรุณาอัปโหลดสลิปชำระส่วนที่เหลือที่หน้าหลัก"
   },
   unpaid: {
     label: "ยังไม่จ่าย",
@@ -42,13 +43,13 @@ const STATUS_META = {
 const MONTH_PILL_META = {
   paid: { label: "จ่ายแล้ว", pillClass: "status-normal" },
   pending: { label: "รอตรวจสอบ", pillClass: "status-pending" },
+  partial: { label: "ผ่อนจ่าย", pillClass: "status-partial" },
   unpaid: { label: "ยังไม่จ่าย", pillClass: "status-unpaid" }
 };
 
 const raw = sessionStorage.getItem("cpe33_user");
 
 if (!raw) {
-  // No one is logged in -> send back to the login page
   window.location.href = "../index.html";
 } else {
   const user = JSON.parse(raw);
@@ -58,7 +59,6 @@ if (!raw) {
   document.getElementById("userEmail").textContent = user.email;
   document.getElementById("detailNuid").textContent = user.id;
 
-  // Show first initial inside the avatar circle
   const avatarEl = document.querySelector(".avatar-placeholder");
   if (avatarEl) {
     avatarEl.textContent = user.name ? user.name.trim()[0].toUpperCase() : "?";
@@ -73,34 +73,25 @@ if (!raw) {
   const monthsHint = document.getElementById("monthsHint");
   const monthsList = document.getElementById("monthsList");
 
-  function statusKeyFor(record) {
-    if (!record) return "unpaid";
-    if (record.paid) return "paid";
-    if (record.reviewStatus === "pending") return "pending";
+  function getLedgerInfo(m, record) {
+    const targetAmount = record?.targetAmount || record?.amount || m.amount || 0;
+    const paidAmount = record?.paidAmount || (record?.paid ? targetAmount : 0);
+    const remainingBalance = Math.max(0, targetAmount - paidAmount);
+    const paid = !!(record?.paid || paidAmount >= targetAmount);
+    const reviewStatus = record?.reviewStatus || null;
+
+    return { targetAmount, paidAmount, remainingBalance, paid, reviewStatus };
+  }
+
+  function computeOverallStatus(months, statusByMonth) {
+    if (months.length === 0) return "normal";
+    const ledgers = months.map((m) => getLedgerInfo(m, statusByMonth[m.id]));
+    if (ledgers.every((l) => l.paid)) return "normal";
+    if (ledgers.some((l) => l.reviewStatus === "pending")) return "pending";
+    if (ledgers.some((l) => l.paidAmount > 0)) return "partial";
     return "unpaid";
   }
 
-  // Overall badge across every month an admin has created: "normal"
-  // only if every month is paid, "pending" if at least one is
-  // awaiting review (and none are flat-out unpaid), otherwise
-  // "unpaid". An empty months list (nothing created yet) counts as
-  // "normal" -- there's nothing to owe yet.
-  function computeOverallStatus(months, statusByMonth) {
-    if (months.length === 0) return "normal";
-    const keys = months.map((m) => statusKeyFor(statusByMonth[m.id]));
-    if (keys.every((k) => k === "paid")) return "normal";
-    if (keys.some((k) => k === "unpaid")) return "unpaid";
-    return "pending";
-  }
-
-  /* ----------------------------------------------------------
-     2) Look up this user's payment records in Firestore.
-     The upload page (public/logined/index.js) writes a doc at
-     payments/{nuid}/months/{monthId} for each slip. An admin can
-     also override studentStatus (top-level payments/{nuid} doc)
-     from the admin dashboard -- when it's "termination", that
-     always wins over whatever the per-month picture looks like.
-  ---------------------------------------------------------- */
   function loadStatsData() {
     ensureSignedInAsNuid(user.id)
       .then(() =>
@@ -131,7 +122,7 @@ if (!raw) {
         statusCard.className = `status-card ${meta.cardClass}`;
         statusNote.textContent = meta.note;
 
-        const paidCount = months.filter((m) => statusKeyFor(statusByMonth[m.id]) === "paid").length;
+        const paidCount = months.filter((m) => getLedgerInfo(m, statusByMonth[m.id]).paid).length;
         detailPaid.textContent = months.length ? `${paidCount}/${months.length} เดือน` : "-";
         detailStudentStatus.textContent = meta.label;
 
@@ -224,8 +215,25 @@ if (!raw) {
 
     filteredMonths.forEach((m) => {
       const record = statusByMonth[m.id];
-      const key = statusKeyFor(record);
-      const meta = MONTH_PILL_META[key];
+      const ledger = getLedgerInfo(m, record);
+
+      let pillLabel = MONTH_PILL_META.unpaid.label;
+      let pillClass = MONTH_PILL_META.unpaid.pillClass;
+      let amountSubtext = `${ledger.targetAmount.toLocaleString("th-TH")} บาท`;
+
+      if (ledger.paid) {
+        pillLabel = MONTH_PILL_META.paid.label;
+        pillClass = MONTH_PILL_META.paid.pillClass;
+        amountSubtext = `ชำระแล้ว ${ledger.targetAmount.toLocaleString("th-TH")} บาท`;
+      } else if (ledger.reviewStatus === "pending") {
+        pillLabel = MONTH_PILL_META.pending.label;
+        pillClass = MONTH_PILL_META.pending.pillClass;
+        amountSubtext = `รอตรวจสอบสลิป (${ledger.targetAmount.toLocaleString("th-TH")} บาท)`;
+      } else if (ledger.paidAmount > 0) {
+        pillLabel = `ผ่อนจ่าย (${ledger.paidAmount.toLocaleString("th-TH")}/${ledger.targetAmount.toLocaleString("th-TH")} บาท)`;
+        pillClass = MONTH_PILL_META.partial.pillClass;
+        amountSubtext = `ชำระแล้ว ${ledger.paidAmount.toLocaleString("th-TH")}/${ledger.targetAmount.toLocaleString("th-TH")} บาท (คงเหลือ ${ledger.remainingBalance.toLocaleString("th-TH")} บาท)`;
+      }
 
       const row = document.createElement("div");
       row.className = "month-row";
@@ -233,7 +241,7 @@ if (!raw) {
       const left = document.createElement("div");
       left.className = "month-row-left";
       left.innerHTML = `<div class="month-row-label">${m.label || m.id}</div>` +
-        `<div class="month-row-amount">${Number(m.amount || 0).toLocaleString("th-TH")} บาท</div>`;
+        `<div class="month-row-amount">${amountSubtext}</div>`;
       row.appendChild(left);
 
       const right = document.createElement("div");
@@ -251,8 +259,8 @@ if (!raw) {
       }
 
       const pill = document.createElement("span");
-      pill.className = `status-pill ${meta.pillClass}`;
-      pill.textContent = meta.label;
+      pill.className = `status-pill ${pillClass}`;
+      pill.textContent = pillLabel;
       right.appendChild(pill);
 
       row.appendChild(right);

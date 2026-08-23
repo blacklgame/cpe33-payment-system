@@ -8,6 +8,7 @@ const { writeAuditLog } = require("../_lib/audit");
 /* ------------------------------------------------------------
    Approves a pending payment slip with Auto-Cascading Allocation.
    Allocates funds to close out oldest unpaid balances first.
+   Supports monthId="ALL" or specific monthId.
 ------------------------------------------------------------ */
 
 if (!admin.apps.length) {
@@ -59,38 +60,49 @@ module.exports = async function handler(request, response) {
       response.status(400).json({ error: "Invalid Nu ID format" });
       return;
     }
-    if (!isValidMonthId(monthId)) {
+    if (monthId !== "ALL" && !isValidMonthId(monthId)) {
       response.status(400).json({ error: "Invalid monthId" });
       return;
     }
 
     const db = admin.firestore();
-    const targetPaymentRef = db.collection("payments").doc(nuid).collection("months").doc(monthId);
 
     try {
       await db.runTransaction(async (transaction) => {
-        const pendingSnap = await transaction.get(targetPaymentRef);
-        if (!pendingSnap.exists || pendingSnap.data().reviewStatus !== "pending") {
+        const userMonthsSnap = await transaction.get(db.collection("payments").doc(nuid).collection("months"));
+        const userMonthsMap = {};
+        let targetMonthRef = null;
+        let slipData = null;
+
+        userMonthsSnap.docs.forEach((d) => {
+          const data = d.data();
+          userMonthsMap[d.id] = data;
+          if ((monthId === "ALL" || d.id === monthId) && data.reviewStatus === "pending") {
+            targetMonthRef = d.ref;
+            slipData = data;
+          }
+        });
+
+        if (!targetMonthRef && monthId !== "ALL") {
+          targetMonthRef = db.collection("payments").doc(nuid).collection("months").doc(monthId);
+          const snap = await transaction.get(targetMonthRef);
+          if (snap.exists && snap.data().reviewStatus === "pending") {
+            slipData = snap.data();
+          }
+        }
+
+        if (!targetMonthRef || !slipData) {
           throw new Error("NO_PENDING_SLIP");
         }
 
-        const slipData = pendingSnap.data();
         let fundsToAllocate = typeof slipData.amountPaid === "number" && slipData.amountPaid > 0
           ? slipData.amountPaid
           : (slipData.amount || 0);
 
-        // Retrieve all billing month definitions
         const monthsSnap = await transaction.get(db.collection("months"));
         const allMonths = monthsSnap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => a.id.localeCompare(b.id)); // Chronological: oldest month first
-
-        // Retrieve student's existing month payment records
-        const userMonthsSnap = await transaction.get(db.collection("payments").doc(nuid).collection("months"));
-        const userMonthsMap = {};
-        userMonthsSnap.docs.forEach((d) => {
-          userMonthsMap[d.id] = d.data();
-        });
+          .sort((a, b) => a.id.localeCompare(b.id));
 
         let targetMonthUpdated = false;
 
@@ -117,7 +129,7 @@ module.exports = async function handler(request, response) {
               paid: isPaid
             };
 
-            if (mId === monthId) {
+            if (mRef.path === targetMonthRef.path) {
               updatePayload.reviewStatus = "approved";
               updatePayload.approvedBy = email;
               updatePayload.approvedAt = admin.firestore.FieldValue.serverTimestamp();
@@ -130,7 +142,7 @@ module.exports = async function handler(request, response) {
 
         if (!targetMonthUpdated) {
           transaction.set(
-            targetPaymentRef,
+            targetMonthRef,
             {
               paid: true,
               reviewStatus: "approved",

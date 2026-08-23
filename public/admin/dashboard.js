@@ -192,20 +192,76 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
     statusByNuid[p.id] = p;
   });
 
-  // Sort by Nu ID so the list is stable and easy to scan (1-91 in order).
   const userDocs = users.slice().sort((a, b) => a.id.localeCompare(b.id));
 
   return userDocs.map((userData, index) => {
     const nuid = userData.id;
-    const monthly = monthId ? (monthlyPayments[nuid] || {})[monthId] || null : null;
-    const paid = !!(monthly && monthly.paid);
+    const studentMonthlyMap = monthlyPayments[nuid] || {};
 
-    // studentStatus is a manual admin override (termination, or a
-    // forced "unpaid") that applies to the STUDENT, not to any one
-    // month -- it lives on the top-level payments/{nuid} doc.
-    // Older records that predate this feature won't have it yet, so
-    // fall back to this month's paid flag: paid -> "normal", not
-    // paid -> "unpaid".
+    let paid = false;
+    let pendingReview = false;
+    let slipUrl = null;
+    let slipPublicId = null;
+    let amount = null;
+    let targetAmount = null;
+    let paidAmount = null;
+    let remainingBalance = null;
+    let amountPaid = null;
+    let paymentMode = null;
+
+    const monthDocs = Object.values(studentMonthlyMap);
+    const pendingDoc = monthDocs.find((m) => m.reviewStatus === "pending");
+    const docWithSlip = pendingDoc || monthDocs.find((m) => m.slipUrl) || null;
+
+    if (monthId === "ALL") {
+      const sumTarget = rawMonths.reduce((sum, m) => {
+        const mSnap = studentMonthlyMap[m.id] || {};
+        return sum + (mSnap.targetAmount || mSnap.amount || m.amount || 0);
+      }, 0);
+
+      const sumPaid = rawMonths.reduce((sum, m) => {
+        const mSnap = studentMonthlyMap[m.id] || {};
+        const t = mSnap.targetAmount || mSnap.amount || m.amount || 0;
+        return sum + (mSnap.paidAmount || (mSnap.paid ? t : 0));
+      }, 0);
+
+      const sumRemaining = Math.max(0, sumTarget - sumPaid);
+
+      paid = sumPaid >= sumTarget && sumTarget > 0;
+      pendingReview = !!pendingDoc;
+      slipUrl = docWithSlip ? docWithSlip.slipUrl : null;
+      slipPublicId = docWithSlip ? docWithSlip.slipPublicId : null;
+      amount = sumTarget;
+      targetAmount = sumTarget;
+      paidAmount = sumPaid;
+      remainingBalance = sumRemaining;
+      amountPaid = pendingDoc ? (pendingDoc.amountPaid || sumTarget) : null;
+      paymentMode = docWithSlip ? docWithSlip.paymentMode : "all";
+
+    } else {
+      const monthly = studentMonthlyMap[monthId] || null;
+      const mDef = rawMonths.find((m) => m.id === monthId) || {};
+      const mTarget = monthly?.targetAmount || monthly?.amount || mDef.amount || 0;
+      const mPaid = monthly?.paidAmount || (monthly?.paid ? mTarget : 0);
+
+      paid = !!(monthly && (monthly.paid || mPaid >= mTarget));
+      pendingReview = !!(monthly && monthly.reviewStatus === "pending");
+
+      // Use specific month's slip if present, otherwise fallback to any uploaded slip for this student
+      slipUrl = monthly?.slipUrl || (docWithSlip ? docWithSlip.slipUrl : null);
+      slipPublicId = monthly?.slipPublicId || (docWithSlip ? docWithSlip.slipPublicId : null);
+      if (!pendingReview && docWithSlip && docWithSlip.reviewStatus === "pending") {
+        pendingReview = true;
+      }
+
+      amount = mTarget;
+      targetAmount = mTarget;
+      paidAmount = mPaid;
+      remainingBalance = Math.max(0, mTarget - mPaid);
+      amountPaid = monthly?.amountPaid || (docWithSlip ? docWithSlip.amountPaid : null);
+      paymentMode = monthly?.paymentMode || (docWithSlip ? docWithSlip.paymentMode : null);
+    }
+
     const override = statusByNuid[nuid] && statusByNuid[nuid].studentStatus;
     const studentStatus = override || (paid ? "normal" : "unpaid");
 
@@ -215,24 +271,20 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
       name: userData.name || "-",
       email: userData.email || "-",
       paid,
-      pendingReview: !!(monthly && monthly.reviewStatus === "pending"),
+      pendingReview,
       studentStatus,
-      slipUrl: monthly ? monthly.slipUrl : null,
-      slipPublicId: monthly ? monthly.slipPublicId : null,
-      amount: monthly ? monthly.amount : null,
-      targetAmount: monthly ? monthly.targetAmount : null,
-      paidAmount: monthly ? monthly.paidAmount : null,
-      remainingBalance: monthly ? monthly.remainingBalance : null,
-      amountPaid: monthly ? monthly.amountPaid : null,
-      paymentMode: monthly ? monthly.paymentMode : null
+      slipUrl,
+      slipPublicId,
+      amount,
+      targetAmount,
+      paidAmount,
+      remainingBalance,
+      amountPaid,
+      paymentMode
     };
   });
 }
 
-// Rebuilds allUsers from whatever's currently loaded, for the
-// currently-selected month, and re-renders. Cheap (no network call)
-// -- used both after a fresh fetch and whenever the month dropdown
-// changes.
 function applyCurrentMonth() {
   allUsers = mapUsersAndPayments(rawUsers, rawPayments, rawMonthlyPayments, currentMonthId);
   updateMonthTotal();
@@ -248,9 +300,15 @@ function updateMonthTotal() {
     monthPickerTotal.textContent = "";
     return;
   }
-  const paidUsers = allUsers.filter((u) => u.paid);
-  const total = paidUsers.reduce((sum, u) => sum + (u.amount || 0), 0);
-  monthPickerTotal.textContent = `เก็บได้ ${total.toLocaleString("th-TH")} บาท (${paidUsers.length}/${allUsers.length} คน)`;
+  if (currentMonthId === "ALL") {
+    const totalCollected = allUsers.reduce((sum, u) => sum + (u.paidAmount || 0), 0);
+    const paidUsers = allUsers.filter((u) => u.paid);
+    monthPickerTotal.textContent = `รวมเก็บได้ทั้งหมด ${totalCollected.toLocaleString("th-TH")} บาท (ชำระครบ ${paidUsers.length}/${allUsers.length} คน)`;
+  } else {
+    const paidUsers = allUsers.filter((u) => u.paid);
+    const total = paidUsers.reduce((sum, u) => sum + (u.paidAmount || u.amount || 0), 0);
+    monthPickerTotal.textContent = `เก็บได้ ${total.toLocaleString("th-TH")} บาท (${paidUsers.length}/${allUsers.length} คน)`;
+  }
 }
 
 function renderMonthPicker() {
@@ -264,6 +322,11 @@ function renderMonthPicker() {
 
   monthPickerRow.style.display = "flex";
 
+  const allOpt = document.createElement("option");
+  allOpt.value = "ALL";
+  allOpt.textContent = "จ่ายทุกเดือน (รวมทุกเดือน)";
+  monthPicker.appendChild(allOpt);
+
   rawMonths.forEach((m) => {
     const opt = document.createElement("option");
     opt.value = m.id;
@@ -271,11 +334,8 @@ function renderMonthPicker() {
     monthPicker.appendChild(opt);
   });
 
-  // Keep whatever was already selected if it still exists (e.g.
-  // after a background refresh), otherwise default to the newest
-  // month (rawMonths is sorted newest-first by the server).
-  if (!currentMonthId || !rawMonths.some((m) => m.id === currentMonthId)) {
-    currentMonthId = rawMonths[0].id;
+  if (!currentMonthId || (currentMonthId !== "ALL" && !rawMonths.some((m) => m.id === currentMonthId))) {
+    currentMonthId = "ALL";
   }
   monthPicker.value = currentMonthId;
 }

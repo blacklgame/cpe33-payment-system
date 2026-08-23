@@ -1,33 +1,16 @@
 const admin = require("firebase-admin");
 const cloudinary = require("cloudinary").v2;
-
-/* ------------------------------------------------------------
-   Deletes a slip image from Cloudinary and resets that student's
-   payment status back to unpaid.
-
-   This is the REAL security check for admin actions -- the
-   whitelist checks in admin.js/dashboard.js are just UI gates and
-   can be bypassed by anyone with devtools, so THIS check is what
-   actually decides who's allowed to delete a slip.
-
-   The admin email list itself lives in ONE place --
-   public/admin/admin-emails.json -- and this file reads directly
-   from it (same as the client pages, via fetch), so adding or
-   removing an admin only ever means editing that one JSON file.
-
-   Requires env vars (set in Vercel -> Project -> Settings ->
-   Environment Variables):
-   - FIREBASE_SERVICE_ACCOUNT_BASE64  (see README for how to get this)
-   - CLOUDINARY_API_KEY
-   - CLOUDINARY_API_SECRET
-   (Cloud name is hardcoded below to match your existing setup --
-   it's not secret, so no env var needed for it.)
------------------------------------------------------------- */
 const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { isValidNuid } = require("../_lib/validate");
 const { isValidMonthId } = require("../_lib/months");
 const { writeAuditLog } = require("../_lib/audit");
+
+/* ------------------------------------------------------------
+   Deletes/Rejects a payment slip from Cloudinary and resets the
+   student's payment & ledger status across months.
+   Supports monthId="ALL" or specific monthId.
+------------------------------------------------------------ */
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
@@ -75,7 +58,7 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const { nuid, monthId } = request.body || {};
+    const { nuid, monthId, slipPublicId } = request.body || {};
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
       return;
@@ -84,39 +67,68 @@ module.exports = async function handler(request, response) {
       response.status(400).json({ error: "Invalid Nu ID format" });
       return;
     }
-    if (!isValidMonthId(monthId)) {
+    if (monthId !== "ALL" && !isValidMonthId(monthId)) {
       response.status(400).json({ error: "Invalid monthId" });
       return;
     }
 
     const db = admin.firestore();
-    const paymentRef = db.collection("payments").doc(nuid).collection("months").doc(monthId);
-    const paymentSnap = await paymentRef.get();
+    const monthsSubcollRef = db.collection("payments").doc(nuid).collection("months");
+    const userMonthsSnap = await monthsSubcollRef.get();
 
-    if (!paymentSnap.exists) {
-      response.status(404).json({ error: "No payment record for this nuid/month" });
-      return;
+    let publicIdToDelete = slipPublicId || null;
+    let targetDocId = (monthId !== "ALL") ? monthId : null;
+
+    userMonthsSnap.docs.forEach((d) => {
+      const data = d.data();
+      if (!publicIdToDelete && data.slipPublicId) {
+        publicIdToDelete = data.slipPublicId;
+      }
+      if (!targetDocId && (data.slipPublicId || data.reviewStatus === "pending")) {
+        targetDocId = d.id;
+      }
+    });
+
+    if (publicIdToDelete) {
+      try {
+        await cloudinary.uploader.destroy(publicIdToDelete, { resource_type: "image" });
+      } catch (cErr) {
+        console.warn("Cloudinary destroy warning:", cErr);
+      }
     }
 
-    const publicId = paymentSnap.data().slipPublicId;
-    if (publicId) {
-      await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
-    }
+    const batch = db.batch();
 
-    await paymentRef.set(
-      {
-        paid: false,
-        reviewStatus: "rejected",
-        slipUrl: admin.firestore.FieldValue.delete(),
-        slipPublicId: admin.firestore.FieldValue.delete(),
-        fileName: admin.firestore.FieldValue.delete(),
-        rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
-        rejectedBy: email
-      },
-      { merge: true }
-    );
+    // Reset ledger and clear slip records for student's month docs
+    userMonthsSnap.docs.forEach((d) => {
+      const data = d.data();
+      const mTarget = data.targetAmount || data.amount || 0;
+      const ref = monthsSubcollRef.doc(d.id);
 
-    await writeAuditLog(db, "delete_slip", email, { nuid, monthId, publicId: publicId || null });
+      batch.set(
+        ref,
+        {
+          paid: false,
+          paidAmount: 0,
+          remainingBalance: mTarget,
+          reviewStatus: "rejected",
+          slipUrl: admin.firestore.FieldValue.delete(),
+          slipPublicId: admin.firestore.FieldValue.delete(),
+          fileName: admin.firestore.FieldValue.delete(),
+          amountPaid: admin.firestore.FieldValue.delete(),
+          paymentMode: admin.firestore.FieldValue.delete(),
+          approvedBy: admin.firestore.FieldValue.delete(),
+          approvedAt: admin.firestore.FieldValue.delete(),
+          rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+          rejectedBy: email
+        },
+        { merge: true }
+      );
+    });
+
+    await batch.commit();
+
+    await writeAuditLog(db, "delete_slip", email, { nuid, monthId, publicId: publicIdToDelete || null });
 
     response.status(200).json({ ok: true });
   } catch (err) {
@@ -124,4 +136,3 @@ module.exports = async function handler(request, response) {
     response.status(500).json({ error: "Internal server error" });
   }
 };
-

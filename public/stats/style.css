@@ -22,10 +22,6 @@ main {
   font-size: 1rem;
 }
 
-/* Main status card -- same visual language as the admin dashboard's
-   user cards: a colored left border that matches the status pill,
-   so "normal / termination / unpaid" always reads the same color
-   everywhere in the app. */
 .status-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -54,9 +50,11 @@ main {
 }
 
 .status-card.card-pending {
-  border-left-color: var(--warn); /* distinct from unpaid's red, so a
-    submitted-but-unreviewed slip is easy to spot at a glance and
-    isn't confused with "haven't paid at all". */
+  border-left-color: var(--warn);
+}
+
+.status-card.card-partial {
+  border-left-color: #3b82f6;
 }
 
 .status-card-top {
@@ -90,8 +88,19 @@ main {
 
 .status-pill.status-pending {
   background: var(--warn);
-  color: #201900; /* Dark text for contrast on the lighter amber pill */
+  color: #201900;
   box-shadow: 0 8px 20px -8px rgba(245, 179, 0, 0.55);
+}
+
+.status-pill.status-partial {
+  background: #3b82f6;
+  box-shadow: 0 8px 20px -8px rgba(59, 130, 246, 0.55);
+}
+
+.nav-link-active {
+  color: var(--text);
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 2px;
 }
 
 .profile-block {
@@ -160,8 +169,6 @@ main {
   display: inline-block;
 }
 
-/* Detail tiles -- quick-glance summary underneath the main card,
-   admin-dashboard style rather than a single wall of text. */
 .detail-grid {
   width: 100%;
   display: grid;
@@ -192,7 +199,6 @@ main {
   word-break: break-word;
 }
 
-/* Per-month breakdown */
 .months-section {
   width: 100%;
   display: flex;
@@ -254,7 +260,6 @@ main {
   text-decoration: underline;
 }
 
-/* Responsive adjustment for mobile screens */
 @media (max-width: 600px) {
   .profile-block {
     flex-direction: column;
