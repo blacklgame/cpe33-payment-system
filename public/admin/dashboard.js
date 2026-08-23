@@ -263,6 +263,13 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
     }
 
     const override = statusByNuid[nuid] && statusByNuid[nuid].studentStatus;
+    if (override === "unpaid") {
+      paid = false;
+      paidAmount = 0;
+      remainingBalance = targetAmount;
+    } else if (override === "termination") {
+      paid = false;
+    }
     const studentStatus = override || (paid ? "normal" : "unpaid");
 
     return {
@@ -753,10 +760,6 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
       });
       actions.appendChild(approveLink);
 
-      // Reject button: same as delete under the hood (removes the slip
-      // from Cloudinary and sets reviewStatus:"rejected"), but shown
-      // as a distinct action so the intent is unambiguous -- admin is
-      // explicitly rejecting this slip, not just deleting it.
       const rejectLink = document.createElement("a");
       rejectLink.href = "#";
       rejectLink.className = "action-btn-delete";
@@ -767,11 +770,10 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
       });
       actions.appendChild(rejectLink);
     } else {
-      // Slip exists but is already approved (paid:true) -- only show delete.
       const deleteLink = document.createElement("a");
       deleteLink.href = "#";
       deleteLink.className = "action-btn-delete";
-      deleteLink.textContent = "ลบ";
+      deleteLink.textContent = "ลบ/รีเซ็ตเป็นยังไม่จ่าย";
       deleteLink.addEventListener("click", (e) => {
         e.preventDefault();
         handleDelete(nuid, slipPublicId, deleteLink);
@@ -779,11 +781,23 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
       actions.appendChild(deleteLink);
     }
   } else {
-    const noSlip = document.createElement("span");
-    noSlip.className = "action-btn-view";
-    noSlip.style.opacity = "0.5";
-    noSlip.textContent = "ยังไม่มีสลิปเดือนนี้";
-    actions.appendChild(noSlip);
+    if (paid || (paidAmount != null && paidAmount > 0)) {
+      const resetLink = document.createElement("a");
+      resetLink.href = "#";
+      resetLink.className = "action-btn-delete";
+      resetLink.textContent = "รีเซ็ตเป็นยังไม่จ่าย";
+      resetLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        handleStatusChange(nuid, "unpaid", statusSelect, card);
+      });
+      actions.appendChild(resetLink);
+    } else {
+      const noSlip = document.createElement("span");
+      noSlip.className = "action-btn-view";
+      noSlip.style.opacity = "0.5";
+      noSlip.textContent = "ยังไม่มีสลิปเดือนนี้";
+      actions.appendChild(noSlip);
+    }
   }
 
   card.appendChild(actions);
@@ -813,12 +827,7 @@ async function handleStatusChange(nuid, newStatus, selectEl, card) {
     selectEl.dataset.previousValue = newStatus;
     applyCardStatusClass(card, newStatus);
 
-    // Keep the in-memory list in sync too, so the new status is still
-    // correct if the admin switches page or searches without a reload.
-    const cached = allUsers.find((u) => u.nuid === nuid);
-    if (cached) cached.studentStatus = newStatus;
-    const cachedRaw = rawPayments.find((p) => p.id === nuid);
-    if (cachedRaw) cachedRaw.studentStatus = newStatus;
+    await loadDashboard();
   } catch (err) {
     console.error("Status update failed:", err);
     alert("เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");

@@ -1,29 +1,4 @@
 const admin = require("firebase-admin");
-
-/* ------------------------------------------------------------
-   Sets a student's manual status: "normal", "termination", or
-   "unpaid". This is admin-only and, like delete-slip.js, does the
-   REAL security check server-side -- the whitelist checks in
-   admin.js/dashboard.js are just UI gates and can be bypassed by
-   anyone with devtools, so THIS check is what actually decides who
-   can change a student's status.
-
-   The admin email list itself lives in ONE place --
-   public/admin/admin-emails.json -- and this file reads directly
-   from it, so adding or removing an admin only ever means editing
-   that one JSON file.
-
-   This can't be a plain client-side Firestore write at all --
-   firestore.rules denies every client write to payments/{nuid}
-   unconditionally, student or admin. A status field that can mark
-   someone "terminated" needs to be admin-only, so it's set here
-   using the Admin SDK (which bypasses Firestore rules) after
-   independently verifying the caller is an approved admin.
-
-   Requires the same env var as delete-slip.js (set in Vercel ->
-   Project -> Settings -> Environment Variables):
-   - FIREBASE_SERVICE_ACCOUNT_BASE64
------------------------------------------------------------- */
 const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { isValidNuid } = require("../_lib/validate");
@@ -87,7 +62,6 @@ module.exports = async function handler(request, response) {
 
     const db = admin.firestore();
 
-    // Verify student exists in the roster
     const userRef = db.collection("users").doc(nuid);
     const userSnap = await userRef.get();
     if (!userSnap.exists) {
@@ -96,7 +70,6 @@ module.exports = async function handler(request, response) {
     }
 
     const paymentRef = db.collection("payments").doc(nuid);
-
     await paymentRef.set(
       {
         studentStatus: status,
@@ -106,6 +79,39 @@ module.exports = async function handler(request, response) {
       { merge: true }
     );
 
+    // If status is set to "unpaid", reset month docs as well so ledger reflects unpaid
+    if (status === "unpaid") {
+      const monthsSubcollRef = paymentRef.collection("months");
+      const userMonthsSnap = await monthsSubcollRef.get();
+      const batch = db.batch();
+
+      userMonthsSnap.docs.forEach((d) => {
+        const data = d.data();
+        const mTarget = data.targetAmount || data.amount || 0;
+        batch.set(
+          monthsSubcollRef.doc(d.id),
+          {
+            paid: false,
+            paidAmount: 0,
+            remainingBalance: mTarget,
+            reviewStatus: "rejected",
+            slipUrl: admin.firestore.FieldValue.delete(),
+            slipPublicId: admin.firestore.FieldValue.delete(),
+            fileName: admin.firestore.FieldValue.delete(),
+            amountPaid: admin.firestore.FieldValue.delete(),
+            paymentMode: admin.firestore.FieldValue.delete(),
+            approvedBy: admin.firestore.FieldValue.delete(),
+            approvedAt: admin.firestore.FieldValue.delete(),
+            rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            rejectedBy: email
+          },
+          { merge: true }
+        );
+      });
+
+      await batch.commit();
+    }
+
     await writeAuditLog(db, "set_status", email, { nuid, studentStatus: status });
 
     response.status(200).json({ ok: true });
@@ -114,4 +120,3 @@ module.exports = async function handler(request, response) {
     response.status(500).json({ error: "Internal server error" });
   }
 };
-
