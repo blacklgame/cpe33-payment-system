@@ -34,6 +34,7 @@ const searchResultsInfo = document.getElementById("searchResultsInfo");
 const filterAllBtn = document.getElementById("filterAllBtn");
 const pendingFilterToggle = document.getElementById("pendingFilterToggle");
 const paidFilterToggle = document.getElementById("paidFilterToggle");
+const partialFilterToggle = document.getElementById("partialFilterToggle");
 const unpaidFilterToggle = document.getElementById("unpaidFilterToggle");
 const monthPickerRow = document.getElementById("monthPickerRow");
 const monthPicker = document.getElementById("monthPicker");
@@ -537,21 +538,27 @@ function renderCurrentView() {
 function updateFilterBadges() {
   const pendingCount = allUsers.filter((u) => u.pendingReview).length;
   const paidCount = allUsers.filter((u) => u.paid).length;
-  const unpaidCount = allUsers.filter((u) => !u.paid && !u.pendingReview).length;
+  const partialCount = allUsers.filter((u) => !u.paid && !u.pendingReview && u.paidAmount > 0).length;
+  const unpaidCount = allUsers.filter((u) => !u.paid && !u.pendingReview && !(u.paidAmount > 0)).length;
 
   if (filterAllBtn) {
     filterAllBtn.classList.toggle("active", currentStatusFilter === "all");
+    filterAllBtn.textContent = `ทั้งหมด (${allUsers.length})`;
   }
   if (pendingFilterToggle) {
-    pendingFilterToggle.textContent = pendingCount > 0 ? `รอตรวจสอบ (${pendingCount})` : "รอตรวจสอบ";
+    pendingFilterToggle.textContent = `รอตรวจสอบ${pendingCount > 0 ? ` (${pendingCount})` : ""}`;
     pendingFilterToggle.classList.toggle("active", currentStatusFilter === "pending");
   }
   if (paidFilterToggle) {
-    paidFilterToggle.textContent = paidCount > 0 ? `จ่ายแล้ว (${paidCount})` : "จ่ายแล้ว";
+    paidFilterToggle.textContent = `จ่ายแล้ว${paidCount > 0 ? ` (${paidCount})` : ""}`;
     paidFilterToggle.classList.toggle("active", currentStatusFilter === "paid");
   }
+  if (partialFilterToggle) {
+    partialFilterToggle.textContent = `ผ่อนจ่าย${partialCount > 0 ? ` (${partialCount})` : ""}`;
+    partialFilterToggle.classList.toggle("active", currentStatusFilter === "partial");
+  }
   if (unpaidFilterToggle) {
-    unpaidFilterToggle.textContent = unpaidCount > 0 ? `ยังไม่จ่าย (${unpaidCount})` : "ยังไม่จ่าย";
+    unpaidFilterToggle.textContent = `ยังไม่จ่าย${unpaidCount > 0 ? ` (${unpaidCount})` : ""}`;
     unpaidFilterToggle.classList.toggle("active", currentStatusFilter === "unpaid");
   }
 }
@@ -585,8 +592,10 @@ function renderFilteredResults() {
       matchesStatus = u.pendingReview;
     } else if (currentStatusFilter === "paid") {
       matchesStatus = u.paid;
+    } else if (currentStatusFilter === "partial") {
+      matchesStatus = !u.paid && !u.pendingReview && u.paidAmount > 0;
     } else if (currentStatusFilter === "unpaid") {
-      matchesStatus = !u.paid && !u.pendingReview;
+      matchesStatus = !u.paid && !u.pendingReview && !(u.paidAmount > 0);
     }
     return matchesTerm && matchesStatus;
   });
@@ -617,6 +626,13 @@ if (pendingFilterToggle) {
 if (paidFilterToggle) {
   paidFilterToggle.addEventListener("click", () => {
     currentStatusFilter = currentStatusFilter === "paid" ? "all" : "paid";
+    renderCurrentView();
+  });
+}
+
+if (partialFilterToggle) {
+  partialFilterToggle.addEventListener("click", () => {
+    currentStatusFilter = currentStatusFilter === "partial" ? "all" : "partial";
     renderCurrentView();
   });
 }
@@ -738,22 +754,20 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
   const actions = document.createElement("div");
   actions.className = "card-actions";
 
-  // Security: only render the slip link if the URL is a valid https:// link.
-  // This prevents stored XSS via javascript: or data: URIs.
   if (slipUrl && slipUrl.startsWith("https://")) {
     const viewLink = document.createElement("a");
     viewLink.href = slipUrl;
     viewLink.target = "_blank";
     viewLink.rel = "noopener noreferrer";
     viewLink.className = "action-btn-view";
-    viewLink.textContent = "ดูสลิปที่อัพโหลด";
+    viewLink.textContent = "🖼 ดูสลิป";
     actions.appendChild(viewLink);
 
     if (pendingReview) {
       const approveLink = document.createElement("a");
       approveLink.href = "#";
-      approveLink.className = "action-btn-view";
-      approveLink.textContent = "อนุมัติ (Approve)";
+      approveLink.className = "action-btn-approve";
+      approveLink.textContent = "✅ อนุมัติ";
       approveLink.addEventListener("click", (e) => {
         e.preventDefault();
         handleApprove(nuid, approveLink);
@@ -763,7 +777,7 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
       const rejectLink = document.createElement("a");
       rejectLink.href = "#";
       rejectLink.className = "action-btn-delete";
-      rejectLink.textContent = "ปฏิเสธ (Reject)";
+      rejectLink.textContent = "❌ ปฏิเสธ";
       rejectLink.addEventListener("click", (e) => {
         e.preventDefault();
         handleReject(nuid, slipPublicId, rejectLink);
@@ -773,7 +787,7 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
       const deleteLink = document.createElement("a");
       deleteLink.href = "#";
       deleteLink.className = "action-btn-delete";
-      deleteLink.textContent = "ลบ/รีเซ็ตเป็นยังไม่จ่าย";
+      deleteLink.textContent = "🗑 รีเซ็ต";
       deleteLink.addEventListener("click", (e) => {
         e.preventDefault();
         handleDelete(nuid, slipPublicId, deleteLink);
@@ -785,7 +799,7 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
       const resetLink = document.createElement("a");
       resetLink.href = "#";
       resetLink.className = "action-btn-delete";
-      resetLink.textContent = "รีเซ็ตเป็นยังไม่จ่าย";
+      resetLink.textContent = "🔄 รีเซ็ตเป็นยังไม่จ่าย";
       resetLink.addEventListener("click", (e) => {
         e.preventDefault();
         handleStatusChange(nuid, "unpaid", statusSelect, card);
@@ -793,9 +807,8 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
       actions.appendChild(resetLink);
     } else {
       const noSlip = document.createElement("span");
-      noSlip.className = "action-btn-view";
-      noSlip.style.opacity = "0.5";
-      noSlip.textContent = "ยังไม่มีสลิปเดือนนี้";
+      noSlip.className = "action-no-slip";
+      noSlip.textContent = "ยังไม่มีสลิป";
       actions.appendChild(noSlip);
     }
   }
