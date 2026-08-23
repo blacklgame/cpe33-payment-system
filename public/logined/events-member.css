@@ -7,23 +7,37 @@
   padding-bottom: 2px;
 }
 
-/* ── Donut strip (horizontal, compact) ─────────────────────── */
+/* ── Main layout ────────────────────────────────────────────── */
+#mainContent {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 36px 20px 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Donut strip (3-column summary cards) ───────────────────── */
 .donut-strip-member {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 4px;
 }
 
 .donut-card-member {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 18px 16px;
+  padding: 16px 14px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   box-shadow: var(--shadow-card);
   transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
 }
@@ -35,11 +49,11 @@
 
 .donut-svg-wrap-m {
   position: relative;
-  width: 110px;
-  height: 110px;
+  width: 72px;
+  height: 72px;
   flex-shrink: 0;
   border-radius: 50%;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
 .donut-svg-wrap-m svg {
@@ -74,39 +88,45 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(14, 16, 23, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(14, 16, 23, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--radius-pill);
-  padding: 4px 12px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+  padding: 3px 9px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(6px);
 }
 
 .donut-pct-m {
-  font-size: 1.1rem;
+  font-size: 0.85rem;
   font-weight: 800;
 }
 
 .donut-label-m {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--text-dim);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
 }
 
 .donut-amount-m {
-  font-size: 1.35rem;
+  font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 
-.income-c  { color: var(--ok);      }
-.expense-c { color: var(--danger);  }
+.income-c  { color: var(--ok);       }
+.expense-c { color: var(--danger);   }
 .balance-c { color: var(--accent-2); }
 
-/* ── Event accordion cards ─────────────────────────────────── */
+/* ── Events container ───────────────────────────────────────── */
+#eventsContainer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Event accordion cards ──────────────────────────────────── */
 .event-accordion {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -114,6 +134,7 @@
   overflow: hidden;
   box-shadow: var(--shadow-card);
   transition: border-color 0.2s;
+  width: 100%;
 }
 
 .event-accordion.open {
@@ -121,10 +142,10 @@
 }
 
 .accordion-header {
-  padding: 18px 22px;
+  padding: 16px 20px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   cursor: pointer;
   user-select: none;
   transition: background 0.15s;
@@ -135,7 +156,7 @@
 }
 
 .acc-emoji {
-  font-size: 1.7rem;
+  font-size: 1.5rem;
   flex-shrink: 0;
 }
 
@@ -145,21 +166,21 @@
 }
 
 .acc-name {
-  font-size: 1rem;
+  font-size: 0.98rem;
   font-weight: 700;
 }
 
 .acc-pills {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
   margin-top: 4px;
 }
 
 .acc-pill {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  padding: 3px 10px;
+  padding: 2px 9px;
   border-radius: var(--radius-pill);
 }
 
@@ -169,7 +190,7 @@
 
 .acc-chevron {
   color: var(--text-faint);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   transition: transform 0.25s;
   flex-shrink: 0;
 }
@@ -182,7 +203,7 @@
 .accordion-body {
   display: none;
   border-top: 1px solid var(--border);
-  padding: 14px 18px;
+  padding: 12px 16px;
   flex-direction: column;
   gap: 8px;
 }
@@ -195,8 +216,8 @@
 .mini-tx {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 10px;
+  padding: 9px 12px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   border-left: 3px solid transparent;
@@ -206,13 +227,13 @@
 .mini-tx.mini-expense { border-left-color: var(--danger); }
 
 .mini-sign {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 800;
   flex-shrink: 0;
 }
@@ -222,19 +243,19 @@
 
 .mini-label {
   flex: 1;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   min-width: 0;
   word-break: break-word;
 }
 
 .mini-meta {
-  font-size: 0.77rem;
+  font-size: 0.75rem;
   color: var(--text-faint);
 }
 
 .mini-amount {
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   font-weight: 800;
   flex-shrink: 0;
 }
@@ -244,18 +265,19 @@
 
 .mini-empty {
   text-align: center;
-  padding: 16px;
+  padding: 14px;
   color: var(--text-faint);
-  font-size: 0.88rem;
+  font-size: 0.86rem;
 }
 
 /* ── Responsive ─────────────────────────────────────────────── */
-@media (max-width: 640px) {
+@media (max-width: 600px) {
   .donut-strip-member {
     grid-template-columns: 1fr;
   }
 
-  .donut-card-member {
-    gap: 12px;
+  .donut-svg-wrap-m {
+    width: 60px;
+    height: 60px;
   }
 }
