@@ -121,7 +121,12 @@ module.exports = async function handler(request, response) {
         reviewStatus: data.reviewStatus || null,
         slipUrl: data.slipUrl || null,
         slipPublicId: data.slipPublicId || null,
-        amount: typeof data.amount === "number" ? data.amount : null
+        amount: typeof data.amount === "number" ? data.amount : null,
+        targetAmount: typeof data.targetAmount === "number" ? data.targetAmount : (typeof data.amount === "number" ? data.amount : null),
+        paidAmount: typeof data.paidAmount === "number" ? data.paidAmount : (data.paid ? (data.targetAmount || data.amount || 0) : 0),
+        remainingBalance: typeof data.remainingBalance === "number" ? data.remainingBalance : null,
+        amountPaid: typeof data.amountPaid === "number" ? data.amountPaid : null,
+        paymentMode: data.paymentMode || null
       };
     });
 

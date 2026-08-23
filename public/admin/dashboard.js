@@ -31,7 +31,10 @@ const pagination = document.getElementById("pagination");
 const searchInput = document.getElementById("searchInput");
 const searchClear = document.getElementById("searchClear");
 const searchResultsInfo = document.getElementById("searchResultsInfo");
+const filterAllBtn = document.getElementById("filterAllBtn");
 const pendingFilterToggle = document.getElementById("pendingFilterToggle");
+const paidFilterToggle = document.getElementById("paidFilterToggle");
+const unpaidFilterToggle = document.getElementById("unpaidFilterToggle");
 const monthPickerRow = document.getElementById("monthPickerRow");
 const monthPicker = document.getElementById("monthPicker");
 const monthPickerTotal = document.getElementById("monthPickerTotal");
@@ -46,7 +49,7 @@ let rawMonthlyPayments = {};
 let allUsers = [];
 let currentPage = 1;
 let currentSearch = "";
-let showPendingOnly = false;
+let currentStatusFilter = "all"; // "all" | "pending" | "paid" | "unpaid"
 let currentMonthId = null;
 
 let currentAdminUser = null;
@@ -212,16 +215,16 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
       name: userData.name || "-",
       email: userData.email || "-",
       paid,
-      // A slip that's been submitted (via api/submit-slip.js) but
-      // not yet approved by an admin (via api/admin/approve-slip.js)
-      // for THIS month -- see firestore.rules for why paid can no
-      // longer flip to true on its own just because a slip was
-      // uploaded.
       pendingReview: !!(monthly && monthly.reviewStatus === "pending"),
       studentStatus,
       slipUrl: monthly ? monthly.slipUrl : null,
       slipPublicId: monthly ? monthly.slipPublicId : null,
-      amount: monthly ? monthly.amount : null
+      amount: monthly ? monthly.amount : null,
+      targetAmount: monthly ? monthly.targetAmount : null,
+      paidAmount: monthly ? monthly.paidAmount : null,
+      remainingBalance: monthly ? monthly.remainingBalance : null,
+      amountPaid: monthly ? monthly.amountPaid : null,
+      paymentMode: monthly ? monthly.paymentMode : null
     };
   });
 }
@@ -447,8 +450,7 @@ function renderPagination() {
       searchInput.value = "";
       currentSearch = "";
       searchClear.classList.remove("show");
-      showPendingOnly = false;
-      pendingFilterToggle.classList.remove("active");
+      currentStatusFilter = "all";
       renderCurrentView();
     });
     pagination.appendChild(btn);
@@ -456,25 +458,35 @@ function renderPagination() {
 }
 
 function renderCurrentView() {
-  updatePendingBadge();
+  updateFilterBadges();
   updateMonthTotal();
-  if (currentSearch || showPendingOnly) {
+  if (currentSearch || currentStatusFilter !== "all") {
     renderFilteredResults();
   } else {
     renderPageRows();
   }
 }
 
-// Keeps a live count on the pending-filter button itself (e.g.
-// "รอตรวจสอบ (3)") so a newly-submitted slip is visible at a glance
-// the moment the next auto-refresh picks it up -- no need to even
-// click into the filter to notice something showed up.
-const PENDING_LABEL_BASE = "รอตรวจสอบ (Pending approval)";
-function updatePendingBadge() {
+function updateFilterBadges() {
   const pendingCount = allUsers.filter((u) => u.pendingReview).length;
-  pendingFilterToggle.textContent = pendingCount > 0
-    ? `${PENDING_LABEL_BASE} · ${pendingCount}`
-    : PENDING_LABEL_BASE;
+  const paidCount = allUsers.filter((u) => u.paid).length;
+  const unpaidCount = allUsers.filter((u) => !u.paid && !u.pendingReview).length;
+
+  if (filterAllBtn) {
+    filterAllBtn.classList.toggle("active", currentStatusFilter === "all");
+  }
+  if (pendingFilterToggle) {
+    pendingFilterToggle.textContent = pendingCount > 0 ? `รอตรวจสอบ (${pendingCount})` : "รอตรวจสอบ";
+    pendingFilterToggle.classList.toggle("active", currentStatusFilter === "pending");
+  }
+  if (paidFilterToggle) {
+    paidFilterToggle.textContent = paidCount > 0 ? `จ่ายแล้ว (${paidCount})` : "จ่ายแล้ว";
+    paidFilterToggle.classList.toggle("active", currentStatusFilter === "paid");
+  }
+  if (unpaidFilterToggle) {
+    unpaidFilterToggle.textContent = unpaidCount > 0 ? `ยังไม่จ่าย (${unpaidCount})` : "ยังไม่จ่าย";
+    unpaidFilterToggle.classList.toggle("active", currentStatusFilter === "unpaid");
+  }
 }
 
 function renderPageRows() {
@@ -491,9 +503,6 @@ function renderPageRows() {
   pageUsers.forEach((u) => rowsContainer.appendChild(buildRow(u)));
 }
 
-// Combines the search box and the "pending approval only" toggle --
-// either or both can be active at once. Shown as a flat list across
-// the whole roster (like search always was), not one page at a time.
 function renderFilteredResults() {
   pagination.classList.add("hidden");
 
@@ -504,26 +513,53 @@ function renderFilteredResults() {
       u.name.toLowerCase().includes(term) ||
       u.email.toLowerCase().includes(term)
     );
-    const matchesPending = !showPendingOnly || u.pendingReview;
-    return matchesTerm && matchesPending;
+    let matchesStatus = true;
+    if (currentStatusFilter === "pending") {
+      matchesStatus = u.pendingReview;
+    } else if (currentStatusFilter === "paid") {
+      matchesStatus = u.paid;
+    } else if (currentStatusFilter === "unpaid") {
+      matchesStatus = !u.paid && !u.pendingReview;
+    }
+    return matchesTerm && matchesStatus;
   });
 
   searchResultsInfo.style.display = "block";
   searchResultsInfo.textContent = matches.length
     ? `พบ ${matches.length} รายการ`
-    : showPendingOnly
-      ? "ไม่มีรายการที่รอตรวจสอบ"
-      : "ไม่พบผู้ใช้ที่ตรงกับคำค้นหา";
+    : "ไม่พบรายการที่ตรงกับเงื่อนไข";
 
   rowsContainer.innerHTML = "";
   matches.forEach((u) => rowsContainer.appendChild(buildRow(u)));
 }
 
-pendingFilterToggle.addEventListener("click", () => {
-  showPendingOnly = !showPendingOnly;
-  pendingFilterToggle.classList.toggle("active", showPendingOnly);
-  renderCurrentView();
-});
+if (filterAllBtn) {
+  filterAllBtn.addEventListener("click", () => {
+    currentStatusFilter = "all";
+    renderCurrentView();
+  });
+}
+
+if (pendingFilterToggle) {
+  pendingFilterToggle.addEventListener("click", () => {
+    currentStatusFilter = currentStatusFilter === "pending" ? "all" : "pending";
+    renderCurrentView();
+  });
+}
+
+if (paidFilterToggle) {
+  paidFilterToggle.addEventListener("click", () => {
+    currentStatusFilter = currentStatusFilter === "paid" ? "all" : "paid";
+    renderCurrentView();
+  });
+}
+
+if (unpaidFilterToggle) {
+  unpaidFilterToggle.addEventListener("click", () => {
+    currentStatusFilter = currentStatusFilter === "unpaid" ? "all" : "unpaid";
+    renderCurrentView();
+  });
+}
 
 searchInput.addEventListener("input", () => {
   currentSearch = searchInput.value;
@@ -545,7 +581,7 @@ const STATUS_META = {
   unpaid: { label: "ยังไม่จ่าย", pillClass: "status-unpaid", cardClass: "card-unpaid" }
 };
 
-function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus, slipUrl, slipPublicId, amount }) {
+function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus, slipUrl, slipPublicId, amount, targetAmount, paidAmount, remainingBalance, amountPaid, paymentMode }) {
   const row = document.createElement("div");
   row.className = "stat-row";
   row.dataset.nuid = nuid;
@@ -608,7 +644,24 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
   emailEl.textContent = email;
   card.appendChild(emailEl);
 
-  if (paid && amount != null) {
+  if (pendingReview && (amountPaid != null || amount != null)) {
+    const pendingInfo = document.createElement("div");
+    pendingInfo.className = "user-amount";
+    pendingInfo.style.color = "#fbbf24";
+    const modeLabel = paymentMode === "installment" ? "ผ่อนจ่าย" : (paymentMode === "all" ? "จ่ายเหมาทุกเดือน" : "จ่ายเต็ม");
+    const pAmt = amountPaid != null ? amountPaid : (amount || 0);
+    pendingInfo.textContent = `รออนุมัติสลิป ${Number(pAmt).toLocaleString("th-TH")} บาท (${modeLabel})`;
+    card.appendChild(pendingInfo);
+  } else if (paidAmount != null && targetAmount != null && paidAmount > 0) {
+    const amountEl = document.createElement("div");
+    amountEl.className = "user-amount";
+    if (paid) {
+      amountEl.textContent = `จ่ายแล้ว ${Number(paidAmount).toLocaleString("th-TH")}/${Number(targetAmount).toLocaleString("th-TH")} บาท`;
+    } else {
+      amountEl.textContent = `ผ่อนชำระแล้ว ${Number(paidAmount).toLocaleString("th-TH")}/${Number(targetAmount).toLocaleString("th-TH")} บาท (คงเหลือ ${Number(remainingBalance || 0).toLocaleString("th-TH")} บาท)`;
+    }
+    card.appendChild(amountEl);
+  } else if (paid && amount != null) {
     const amountEl = document.createElement("div");
     amountEl.className = "user-amount";
     amountEl.textContent = `จ่ายแล้ว ${Number(amount).toLocaleString("th-TH")} บาท`;

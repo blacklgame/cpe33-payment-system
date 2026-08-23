@@ -83,11 +83,57 @@
     <!-- Upload Payment Slip Card -->
     <div class="card upload-card">
       <h2>แนบหลักฐานการชำระเงิน (Upload Slip)</h2>
-      <p class="hint">เลือกเดือนที่จะชำระ แล้วแนบรูปภาพสลิปการโอนเงินจากอุปกรณ์ของคุณ</p>
+      <p class="hint">เลือกรูปแบบการชำระเงิน แล้วแนบรูปภาพสลิปการโอนเงินจากอุปกรณ์ของคุณ</p>
 
-      <div class="upload-row month-select-row">
-        <label for="monthSelect" class="month-select-label">เดือนที่จะชำระ</label>
+      <!-- 3 Payment Options -->
+      <div class="payment-options-container">
+        <label class="payment-option-card active" id="optFullLabel">
+          <input type="radio" name="paymentOption" value="full" checked id="optFull">
+          <div class="option-content">
+            <span class="option-title">1. จ่ายเต็มเดือนนี้</span>
+            <span class="option-desc">ชำระเต็มจำนวนสำหรับเดือนที่เลือก</span>
+          </div>
+        </label>
+
+        <label class="payment-option-card" id="optInstallmentLabel">
+          <input type="radio" name="paymentOption" value="installment" id="optInstallment">
+          <div class="option-content">
+            <span class="option-title">2. ผ่อนจ่ายเดือนนี้</span>
+            <span class="option-desc">ระบุจำนวนเงินที่ต้องการผ่อนชำระ</span>
+          </div>
+        </label>
+
+        <label class="payment-option-card" id="optAllLabel">
+          <input type="radio" name="paymentOption" value="all" id="optAll">
+          <div class="option-content">
+            <span class="option-title">3. จ่ายเหมาทุกเดือน</span>
+            <span class="option-desc">รวมยอดค้างชำระทั้งหมดทุกเดือน</span>
+          </div>
+        </label>
+      </div>
+
+      <!-- Single Month Selector (For Option 1 & Option 2) -->
+      <div class="upload-row month-select-row" id="monthSelectGroup">
+        <label for="monthSelect" class="month-select-label">เลือกเดือนที่จะชำระ</label>
         <select id="monthSelect" class="input-field month-select-input" disabled></select>
+      </div>
+
+      <!-- Custom Installment Amount Input (For Option 2) -->
+      <div class="upload-row installment-input-row" id="installmentGroup" style="display: none;">
+        <label for="installmentAmount" class="month-select-label">จำนวนเงินที่ผ่อนชำระ (บาท)</label>
+        <input type="number" id="installmentAmount" class="input-field" placeholder="ระบุจำนวนเงิน" min="1" step="any" disabled>
+      </div>
+
+      <!-- Payment Summary Box -->
+      <div class="payment-summary-box" id="paymentSummaryBox">
+        <div class="summary-row">
+          <span>ยอดเงินที่ระบุในสลิปนี้:</span>
+          <strong id="summaryPayAmount" class="summary-amount">0.00 บาท</strong>
+        </div>
+        <div class="summary-row summary-sub" id="summaryRemainingRow">
+          <span>ยอดคงเหลือค้างชำระหลังอนุมัติ:</span>
+          <span id="summaryRemainingAmount">0.00 บาท</span>
+        </div>
       </div>
 
       <div class="upload-row">

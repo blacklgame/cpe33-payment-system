@@ -2,7 +2,7 @@
    1) Sync this page to whichever Nu ID logged in
 ------------------------------------------------------------ */
 import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { db, auth } from "../firebase.js";
 import { ensureSignedInAsNuid, clearActivity } from "../auth-session.js";
 
@@ -10,7 +10,6 @@ const raw = sessionStorage.getItem("cpe33_user");
 let user = null;
 
 if (!raw) {
-  // No one is logged in -> send back to the login page
   window.location.href = "../index.html";
 } else {
   user = JSON.parse(raw);
@@ -18,7 +17,6 @@ if (!raw) {
   document.getElementById("userName").textContent = user.name;
   document.getElementById("userEmail").textContent = user.email;
 
-  // Show first initial inside the avatar circle instead of leaving it empty
   const avatarEl = document.querySelector(".avatar-placeholder");
   if (avatarEl) {
     avatarEl.textContent = user.name ? user.name.trim()[0].toUpperCase() : "?";
@@ -38,24 +36,28 @@ document.getElementById("logoutLink").addEventListener("click", async (e) => {
 });
 
 /* ------------------------------------------------------------
-   2) Monthly dues list + month-scoped slip upload
-
-   Slip images still upload straight from the browser to Cloudinary
-   (keeps us off Vercel's serverless function body-size limit for
-   a multi-MB photo) -- but as a SIGNED upload, not unsigned.
-   /api/sign-upload (server-side, using the Cloudinary API secret)
-   decides the public_id -- now under slips/{nuid}/{monthId}/... --
-   and signs overwrite:false, after checking the caller's Firebase
-   ID token actually matches the nuid they're uploading for, that
-   the picked month exists, and that this month isn't already paid
-   or pending. The browser can only use the exact signature it was
-   given, for the exact public_id the server chose.
+   2) Monthly dues list + 3 Payment Options Engine
 ------------------------------------------------------------ */
 const CLOUDINARY_CLOUD_NAME = "egcc6hml";
 
 const monthsHint = document.getElementById("monthsHint");
 const monthsList = document.getElementById("monthsList");
 const monthSelect = document.getElementById("monthSelect");
+const monthSelectGroup = document.getElementById("monthSelectGroup");
+const installmentGroup = document.getElementById("installmentGroup");
+const installmentAmountInput = document.getElementById("installmentAmount");
+
+const optFull = document.getElementById("optFull");
+const optInstallment = document.getElementById("optInstallment");
+const optAll = document.getElementById("optAll");
+const optFullLabel = document.getElementById("optFullLabel");
+const optInstallmentLabel = document.getElementById("optInstallmentLabel");
+const optAllLabel = document.getElementById("optAllLabel");
+
+const summaryPayAmount = document.getElementById("summaryPayAmount");
+const summaryRemainingAmount = document.getElementById("summaryRemainingAmount");
+const summaryRemainingRow = document.getElementById("summaryRemainingRow");
+
 const fileInput = document.getElementById("fileInput");
 const fileNameLabel = document.getElementById("fileName");
 const previewWrap = document.getElementById("previewWrap");
@@ -66,15 +68,20 @@ const chooseBtn = document.querySelector(".btn-choose");
 
 let selectedFile = null;
 let terminated = false;
+let loadedMonths = [];
+let loadedStatusByMonth = {};
+let payableMonthsList = [];
 
 const MONTH_PILL_META = {
   paid: { label: "จ่ายแล้ว", cls: "pill-paid" },
   pending: { label: "รอตรวจสอบ", cls: "pill-pending" },
-  unpaid: { label: "ยังไม่จ่าย", cls: "pill-unpaid" }
+  unpaid: { label: "ยังไม่จ่าย", cls: "pill-unpaid" },
+  partial: { label: "ผ่อนจ่าย", cls: "pill-partial" }
 };
 
 function disableUploadUi(message) {
   monthSelect.disabled = true;
+  installmentAmountInput.disabled = true;
   fileInput.disabled = true;
   sendBtn.disabled = true;
   if (chooseBtn) {
@@ -85,6 +92,16 @@ function disableUploadUi(message) {
     statusText.textContent = message;
     statusText.className = "status-text error";
   }
+}
+
+function getLedgerInfo(m, statusRecord) {
+  const targetAmount = statusRecord?.targetAmount || statusRecord?.amount || m.amount || 0;
+  const paidAmount = statusRecord?.paidAmount || (statusRecord?.paid ? targetAmount : 0);
+  const remainingBalance = Math.max(0, targetAmount - paidAmount);
+  const paid = !!(statusRecord?.paid || paidAmount >= targetAmount);
+  const reviewStatus = statusRecord?.reviewStatus || null;
+
+  return { targetAmount, paidAmount, remainingBalance, paid, reviewStatus };
 }
 
 async function loadMonthsAndStatus() {
@@ -103,17 +120,17 @@ async function loadMonthsAndStatus() {
       terminated = true;
     }
 
-    const months = monthsSnap.docs
+    loadedMonths = monthsSnap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => b.id.localeCompare(a.id));
 
-    const statusByMonth = {};
+    loadedStatusByMonth = {};
     monthlySnap.docs.forEach((d) => {
-      statusByMonth[d.id] = d.data();
+      loadedStatusByMonth[d.id] = d.data();
     });
 
-    renderMonthsList(months, statusByMonth);
-    populateMonthPicker(months, statusByMonth);
+    renderMonthsList(loadedMonths, loadedStatusByMonth);
+    populateMonthPicker(loadedMonths, loadedStatusByMonth);
 
     if (terminated) {
       disableUploadUi("บัญชีของคุณพ้นสภาพนิสิตแล้ว ไม่สามารถอัปโหลดสลิปได้ กรุณาติดต่อผู้ดูแลระบบ");
@@ -122,13 +139,6 @@ async function loadMonthsAndStatus() {
     console.error("Failed to load months:", err);
     monthsHint.textContent = "โหลดข้อมูลไม่สำเร็จ กรุณาลองรีเฟรชหน้านี้อีกครั้ง";
   }
-}
-
-function statusKeyFor(record) {
-  if (!record) return "unpaid";
-  if (record.paid) return "paid";
-  if (record.reviewStatus === "pending") return "pending";
-  return "unpaid";
 }
 
 let selectedYearFilter = null;
@@ -191,65 +201,147 @@ function renderMonthsList(months, statusByMonth) {
   });
 
   filteredMonths.forEach((m) => {
-    const key = statusKeyFor(statusByMonth[m.id]);
-    const meta = MONTH_PILL_META[key];
+    const ledger = getLedgerInfo(m, statusByMonth[m.id]);
+
+    let labelText = MONTH_PILL_META.unpaid.label;
+    let pillClass = MONTH_PILL_META.unpaid.cls;
+
+    if (ledger.paid) {
+      labelText = MONTH_PILL_META.paid.label;
+      pillClass = MONTH_PILL_META.paid.cls;
+    } else if (ledger.reviewStatus === "pending") {
+      labelText = MONTH_PILL_META.pending.label;
+      pillClass = MONTH_PILL_META.pending.cls;
+    } else if (ledger.paidAmount > 0) {
+      labelText = `ผ่อนชำระแล้ว ${ledger.paidAmount.toLocaleString("th-TH")}/${ledger.targetAmount.toLocaleString("th-TH")} บาท`;
+      pillClass = MONTH_PILL_META.partial.cls;
+    }
 
     const row = document.createElement("div");
     row.className = "month-row";
 
     const left = document.createElement("div");
     left.innerHTML = `<div class="month-row-label">${m.label || m.id}</div>` +
-      `<div class="month-row-amount">${Number(m.amount || 0).toLocaleString("th-TH")} บาท</div>`;
+      `<div class="month-row-amount">เป้าหมาย: ${ledger.targetAmount.toLocaleString("th-TH")} บาท (คงเหลือ: ${ledger.remainingBalance.toLocaleString("th-TH")} บาท)</div>`;
     row.appendChild(left);
 
     const pill = document.createElement("span");
-    pill.className = `month-row-pill ${meta.cls}`;
-    pill.textContent = meta.label;
+    pill.className = `month-row-pill ${pillClass}`;
+    pill.textContent = labelText;
     row.appendChild(pill);
 
     monthsList.appendChild(row);
   });
 }
 
-// The upload picker only offers months that still need a slip --
-// no reason to let a student pick a month that's already paid or
-// already has a slip pending review (sign-upload.js would reject it
-// anyway; filtering here just avoids a confusing round trip).
 function populateMonthPicker(months, statusByMonth) {
-  const payable = months.filter((m) => statusKeyFor(statusByMonth[m.id]) === "unpaid");
+  payableMonthsList = months
+    .map((m) => ({ m, ledger: getLedgerInfo(m, statusByMonth[m.id]) }))
+    .filter(({ ledger }) => !ledger.paid && ledger.reviewStatus !== "pending" && ledger.remainingBalance > 0)
+    .map(({ m, ledger }) => ({ ...m, ...ledger }));
+
+  // Sort chronological (oldest unpaid month first)
+  payableMonthsList.sort((a, b) => a.id.localeCompare(b.id));
 
   monthSelect.innerHTML = "";
 
   if (terminated) return;
 
-  if (payable.length === 0) {
+  if (payableMonthsList.length === 0) {
     const opt = document.createElement("option");
     opt.textContent = "ไม่มีเดือนที่ต้องชำระ";
     monthSelect.appendChild(opt);
     disableUploadUi();
+    updatePaymentSummary();
     return;
   }
 
-  payable.forEach((m) => {
+  payableMonthsList.forEach((m) => {
     const opt = document.createElement("option");
     opt.value = m.id;
-    opt.textContent = `${m.label || m.id} (${Number(m.amount || 0).toLocaleString("th-TH")} บาท)`;
+    opt.textContent = `${m.label || m.id} (ค้างชำระ ${m.remainingBalance.toLocaleString("th-TH")} บาท)`;
     monthSelect.appendChild(opt);
   });
 
   monthSelect.disabled = false;
+  installmentAmountInput.disabled = false;
   fileInput.disabled = false;
   if (chooseBtn) {
     chooseBtn.style.pointerEvents = "";
     chooseBtn.style.opacity = "";
   }
+
+  updatePaymentSummary();
 }
 
-// Wait for Firebase Auth to restore the custom-token session from
-// localStorage before reading Firestore. Without this, a page refresh
-// would fire loadMonthsAndStatus() before auth.currentUser is set,
-// causing every Firestore read (which requires auth.uid == nuid) to
-// fail with a permission-denied error and show "โหลดข้อมูลไม่สำเร็จ".
+function getSelectedPaymentMode() {
+  if (optInstallment.checked) return "installment";
+  if (optAll.checked) return "all";
+  return "full";
+}
+
+function updatePaymentOptionUi() {
+  const mode = getSelectedPaymentMode();
+
+  optFullLabel.classList.toggle("active", mode === "full");
+  optInstallmentLabel.classList.toggle("active", mode === "installment");
+  optAllLabel.classList.toggle("active", mode === "all");
+
+  if (mode === "full") {
+    monthSelectGroup.style.display = "flex";
+    installmentGroup.style.display = "none";
+  } else if (mode === "installment") {
+    monthSelectGroup.style.display = "flex";
+    installmentGroup.style.display = "flex";
+  } else if (mode === "all") {
+    monthSelectGroup.style.display = "none";
+    installmentGroup.style.display = "none";
+  }
+
+  updatePaymentSummary();
+}
+
+function updatePaymentSummary() {
+  const mode = getSelectedPaymentMode();
+  let payAmount = 0;
+  let remainingAmount = 0;
+
+  if (payableMonthsList.length === 0) {
+    summaryPayAmount.textContent = "0.00 บาท";
+    summaryRemainingAmount.textContent = "0.00 บาท";
+    return;
+  }
+
+  const selectedMonthId = monthSelect.value;
+  const currentMonth = payableMonthsList.find((m) => m.id === selectedMonthId) || payableMonthsList[0];
+
+  if (mode === "full") {
+    payAmount = currentMonth ? currentMonth.remainingBalance : 0;
+    remainingAmount = 0;
+    summaryRemainingRow.style.display = "flex";
+  } else if (mode === "installment") {
+    const targetRem = currentMonth ? currentMonth.remainingBalance : 0;
+    const inputVal = parseFloat(installmentAmountInput.value) || 0;
+    payAmount = Math.max(0, Math.min(inputVal, targetRem));
+    remainingAmount = Math.max(0, targetRem - payAmount);
+    summaryRemainingRow.style.display = "flex";
+  } else if (mode === "all") {
+    payAmount = payableMonthsList.reduce((sum, m) => sum + m.remainingBalance, 0);
+    remainingAmount = 0;
+    summaryRemainingRow.style.display = "flex";
+  }
+
+  summaryPayAmount.textContent = `${payAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })} บาท`;
+  summaryRemainingAmount.textContent = `${remainingAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })} บาท`;
+}
+
+[optFull, optInstallment, optAll].forEach((radio) => {
+  radio.addEventListener("change", updatePaymentOptionUi);
+});
+
+monthSelect.addEventListener("change", updatePaymentSummary);
+installmentAmountInput.addEventListener("input", updatePaymentSummary);
+
 if (user) {
   (async () => {
     if (typeof auth.authStateReady === "function") {
@@ -298,7 +390,6 @@ fileInput.addEventListener("change", () => {
   fileNameLabel.textContent = file.name;
   sendBtn.disabled = false;
 
-  // Show a preview of the picked image
   const reader = new FileReader();
   reader.onload = (e) => {
     previewImg.src = e.target.result;
@@ -310,9 +401,48 @@ fileInput.addEventListener("change", () => {
 sendBtn.addEventListener("click", async () => {
   if (!selectedFile || !user) return;
 
-  const monthId = monthSelect.value;
-  if (!monthId) {
+  const mode = getSelectedPaymentMode();
+
+  if (payableMonthsList.length === 0) {
+    statusText.textContent = "ไม่มีเดือนที่ต้องชำระ";
+    statusText.className = "status-text error";
+    return;
+  }
+
+  let targetMonthId = monthSelect.value;
+  if (mode === "all") {
+    targetMonthId = payableMonthsList[0].id;
+  }
+
+  if (!targetMonthId) {
     statusText.textContent = "กรุณาเลือกเดือนที่จะชำระ";
+    statusText.className = "status-text error";
+    return;
+  }
+
+  const selectedMonth = payableMonthsList.find((m) => m.id === targetMonthId) || payableMonthsList[0];
+  let amountPaid = 0;
+
+  if (mode === "full") {
+    amountPaid = selectedMonth.remainingBalance;
+  } else if (mode === "installment") {
+    amountPaid = parseFloat(installmentAmountInput.value) || 0;
+    if (amountPaid <= 0) {
+      statusText.textContent = "กรุณาระบุจำนวนเงินผ่อนชำระที่ถูกต้อง (มากกว่า 0 บาท)";
+      statusText.className = "status-text error";
+      return;
+    }
+    if (amountPaid > selectedMonth.remainingBalance) {
+      statusText.textContent = `จำนวนเงินผ่อนชำระต้องไม่เกินยอดค้างชำระ (${selectedMonth.remainingBalance} บาท)`;
+      statusText.className = "status-text error";
+      return;
+    }
+  } else if (mode === "all") {
+    amountPaid = payableMonthsList.reduce((sum, m) => sum + m.remainingBalance, 0);
+  }
+
+  if (amountPaid <= 0) {
+    statusText.textContent = "จำนวนเงินชำระต้องมากกว่า 0 บาท";
     statusText.className = "status-text error";
     return;
   }
@@ -323,9 +453,6 @@ sendBtn.addEventListener("click", async () => {
   statusText.className = "status-text";
 
   try {
-    // Make sure we're signed in as this nuid before asking for a
-    // signature or calling submit-slip -- both now check the ID
-    // token against the nuid in the request.
     await ensureSignedInAsNuid(user.id);
     let idToken = await auth.currentUser.getIdToken();
 
@@ -335,7 +462,7 @@ sendBtn.addEventListener("click", async () => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${idToken}`
       },
-      body: JSON.stringify({ nuid: user.id, monthId })
+      body: JSON.stringify({ nuid: user.id, monthId: targetMonthId })
     });
 
     if (signRes.status === 401 || signRes.status === 403) {
@@ -346,7 +473,7 @@ sendBtn.addEventListener("click", async () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`
         },
-        body: JSON.stringify({ nuid: user.id, monthId })
+        body: JSON.stringify({ nuid: user.id, monthId: targetMonthId })
       });
     }
 
@@ -386,7 +513,9 @@ sendBtn.addEventListener("click", async () => {
       },
       body: JSON.stringify({
         nuid: user.id,
-        monthId,
+        monthId: targetMonthId,
+        paymentMode: mode,
+        amountPaid,
         fileName: selectedFile.name,
         slipUrl,
         slipPublicId: result.public_id
@@ -403,7 +532,9 @@ sendBtn.addEventListener("click", async () => {
         },
         body: JSON.stringify({
           nuid: user.id,
-          monthId,
+          monthId: targetMonthId,
+          paymentMode: mode,
+          amountPaid,
           fileName: selectedFile.name,
           slipUrl,
           slipPublicId: result.public_id
@@ -416,13 +547,11 @@ sendBtn.addEventListener("click", async () => {
       throw new Error(errBody.error || "Submit failed");
     }
 
-    statusText.textContent = `ส่ง "${selectedFile.name}" แล้ว รอผู้ดูแลระบบตรวจสอบ`;
+    statusText.textContent = `ส่ง "${selectedFile.name}" (จำนวน ${amountPaid.toLocaleString("th-TH")} บาท) แล้ว รอผู้ดูแลระบบตรวจสอบ`;
     statusText.className = "status-text success";
 
-    // Reset the file picker and refresh the months list/picker so
-    // this month now shows "รอตรวจสอบ" and drops out of the upload
-    // dropdown (it's no longer payable until an admin acts on it).
     fileInput.value = "";
+    installmentAmountInput.value = "";
     selectedFile = null;
     fileNameLabel.textContent = "ยังไม่ได้เลือกไฟล์";
     previewWrap.classList.remove("show");
@@ -448,7 +577,6 @@ const copyTooltip = document.getElementById("copyTooltip");
 
 if (btnCopy && bankAccountNumber && copyTooltip) {
   btnCopy.addEventListener("click", async () => {
-    // Extract digits only for easy bank transfer paste
     const cleanNumber = bankAccountNumber.textContent.replace(/-/g, "");
     try {
       await navigator.clipboard.writeText(cleanNumber);
@@ -467,7 +595,6 @@ if (btnCopy && bankAccountNumber && copyTooltip) {
       }, 2000);
     } catch (err) {
       console.error("Failed to copy text:", err);
-      // Fallback for older browsers
       const textarea = document.createElement("textarea");
       textarea.value = cleanNumber;
       document.body.appendChild(textarea);

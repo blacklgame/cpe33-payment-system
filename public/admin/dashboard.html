@@ -57,7 +57,12 @@
         <input type="text" id="searchInput" class="search-input" placeholder="ค้นหา: รหัสนิสิต, 3 ตัวท้าย, หรือชื่อ...">
         <button type="button" id="searchClear" class="search-clear">✕</button>
       </div>
-      <button type="button" id="pendingFilterToggle" class="pending-filter-btn">รอตรวจสอบ (Pending approval)</button>
+      <div class="filter-btn-group">
+        <button type="button" id="filterAllBtn" class="filter-btn active">ทั้งหมด (All)</button>
+        <button type="button" id="pendingFilterToggle" class="filter-btn filter-btn-pending">รอตรวจสอบ</button>
+        <button type="button" id="paidFilterToggle" class="filter-btn filter-btn-paid">จ่ายแล้ว</button>
+        <button type="button" id="unpaidFilterToggle" class="filter-btn filter-btn-unpaid">ยังไม่จ่าย</button>
+      </div>
       <div class="pagination" id="pagination"></div>
       <div class="search-results-info" id="searchResultsInfo" style="display:none;"></div>
     </div>

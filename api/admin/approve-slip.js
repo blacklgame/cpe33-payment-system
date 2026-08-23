@@ -1,23 +1,14 @@
 const admin = require("firebase-admin");
-
-/* ------------------------------------------------------------
-   Approves a pending payment slip -- the ONLY place in this whole
-   codebase that is allowed to set paid:true. Paired with
-   api/submit-slip.js, which only ever writes paid:false.
-
-   Same auth pattern as set-status.js/delete-slip.js: this is the
-   real security check (client-side whitelist checks in
-   admin.js/dashboard.js are just UI gates).
-
-   Requires the same env var as the other api/admin/*.js files (set
-   in Vercel -> Project -> Settings -> Environment Variables):
-   - FIREBASE_SERVICE_ACCOUNT_BASE64
------------------------------------------------------------- */
 const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { isValidNuid } = require("../_lib/validate");
 const { isValidMonthId } = require("../_lib/months");
 const { writeAuditLog } = require("../_lib/audit");
+
+/* ------------------------------------------------------------
+   Approves a pending payment slip with Auto-Cascading Allocation.
+   Allocates funds to close out oldest unpaid balances first.
+------------------------------------------------------------ */
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
@@ -74,24 +65,81 @@ module.exports = async function handler(request, response) {
     }
 
     const db = admin.firestore();
-    const paymentRef = db.collection("payments").doc(nuid).collection("months").doc(monthId);
+    const targetPaymentRef = db.collection("payments").doc(nuid).collection("months").doc(monthId);
 
     try {
       await db.runTransaction(async (transaction) => {
-        const paymentSnap = await transaction.get(paymentRef);
-        if (!paymentSnap.exists || paymentSnap.data().reviewStatus !== "pending") {
+        const pendingSnap = await transaction.get(targetPaymentRef);
+        if (!pendingSnap.exists || pendingSnap.data().reviewStatus !== "pending") {
           throw new Error("NO_PENDING_SLIP");
         }
-        transaction.set(
-          paymentRef,
-          {
-            paid: true,
-            reviewStatus: "approved",
-            approvedBy: email,
-            approvedAt: admin.firestore.FieldValue.serverTimestamp()
-          },
-          { merge: true }
-        );
+
+        const slipData = pendingSnap.data();
+        let fundsToAllocate = typeof slipData.amountPaid === "number" && slipData.amountPaid > 0
+          ? slipData.amountPaid
+          : (slipData.amount || 0);
+
+        // Retrieve all billing month definitions
+        const monthsSnap = await transaction.get(db.collection("months"));
+        const allMonths = monthsSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => a.id.localeCompare(b.id)); // Chronological: oldest month first
+
+        // Retrieve student's existing month payment records
+        const userMonthsSnap = await transaction.get(db.collection("payments").doc(nuid).collection("months"));
+        const userMonthsMap = {};
+        userMonthsSnap.docs.forEach((d) => {
+          userMonthsMap[d.id] = d.data();
+        });
+
+        let targetMonthUpdated = false;
+
+        for (const mDef of allMonths) {
+          const mId = mDef.id;
+          const mSnap = userMonthsMap[mId] || {};
+          const mTarget = mSnap.targetAmount || mSnap.amount || mDef.amount || 0;
+          const mPaid = mSnap.paidAmount || (mSnap.paid ? mTarget : 0);
+          const mRemaining = Math.max(0, mTarget - mPaid);
+
+          if (mRemaining > 0 && fundsToAllocate > 0) {
+            const allocated = Math.min(fundsToAllocate, mRemaining);
+            const newPaidAmount = mPaid + allocated;
+            const newRemaining = Math.max(0, mTarget - newPaidAmount);
+            const isPaid = newPaidAmount >= mTarget;
+
+            fundsToAllocate -= allocated;
+
+            const mRef = db.collection("payments").doc(nuid).collection("months").doc(mId);
+            const updatePayload = {
+              targetAmount: mTarget,
+              paidAmount: newPaidAmount,
+              remainingBalance: newRemaining,
+              paid: isPaid
+            };
+
+            if (mId === monthId) {
+              updatePayload.reviewStatus = "approved";
+              updatePayload.approvedBy = email;
+              updatePayload.approvedAt = admin.firestore.FieldValue.serverTimestamp();
+              targetMonthUpdated = true;
+            }
+
+            transaction.set(mRef, updatePayload, { merge: true });
+          }
+        }
+
+        if (!targetMonthUpdated) {
+          transaction.set(
+            targetPaymentRef,
+            {
+              paid: true,
+              reviewStatus: "approved",
+              approvedBy: email,
+              approvedAt: admin.firestore.FieldValue.serverTimestamp()
+            },
+            { merge: true }
+          );
+        }
       });
     } catch (txErr) {
       if (txErr.message === "NO_PENDING_SLIP") {
@@ -109,4 +157,3 @@ module.exports = async function handler(request, response) {
     response.status(500).json({ error: "Internal server error" });
   }
 };
-
