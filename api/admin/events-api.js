@@ -185,6 +185,10 @@ module.exports = async function handler(req, res) {
           res.status(400).json({ error: "label too long (max 200 characters)" }); return;
         }
 
+        if (note !== undefined && typeof note === "string" && note.trim().length > 300) {
+          res.status(400).json({ error: "note too long (max 300 characters)" }); return;
+        }
+
         const amountNum = Number(amount);
         if (!Number.isFinite(amountNum) || amountNum <= 0 || amountNum > 10_000_000) {
           res.status(400).json({ error: "amount must be a positive number up to 10,000,000" }); return;
@@ -227,7 +231,7 @@ module.exports = async function handler(req, res) {
             amount: amountNum,
             quantity: quantityNum,
             totalAmount,
-            note: typeof note === "string" ? note.trim().slice(0, 300) : "",
+            note: typeof note === "string" ? note.trim() : "",
             createdBy: email,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -299,6 +303,9 @@ module.exports = async function handler(req, res) {
         if (!eventId || !txId) {
           res.status(400).json({ error: "eventId and txId are required" }); return;
         }
+        if (note !== undefined && typeof note === "string" && note.trim().length > 300) {
+          res.status(400).json({ error: "note too long (max 300 characters)" }); return;
+        }
 
         const eventRef = db.collection("events").doc(eventId);
         const txRef = eventRef.collection("transactions").doc(txId);
@@ -356,7 +363,7 @@ module.exports = async function handler(req, res) {
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           };
           if (label !== undefined) txUpdates.label = label.trim();
-          if (note !== undefined) txUpdates.note = note.trim().slice(0, 300);
+          if (note !== undefined) txUpdates.note = note.trim();
 
           transaction.update(txRef, txUpdates);
           transaction.update(eventRef, {

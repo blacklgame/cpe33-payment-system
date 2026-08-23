@@ -58,7 +58,11 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const { nuid, monthId, slipPublicId } = request.body || {};
+    const { nuid, monthId, slipPublicId, confirm } = request.body || {};
+    if (confirm !== true) {
+      response.status(400).json({ error: "Missing confirmation: set confirm=true to proceed with this destructive action" });
+      return;
+    }
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
       return;
