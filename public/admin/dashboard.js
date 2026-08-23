@@ -829,7 +829,7 @@ async function handleStatusChange(nuid, newStatus, selectEl, card) {
   actionInFlight = true;
 
   try {
-    const res = await authorizedFetch("/api/admin/set-status", { nuid, status: newStatus });
+    const res = await authorizedFetch("/api/admin/set-status", { nuid, status: newStatus, confirm: true });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -892,7 +892,7 @@ async function handleReject(nuid, slipPublicId, triggerEl) {
   actionInFlight = true;
 
   try {
-    const res = await authorizedFetch("/api/admin/delete-slip", { nuid, monthId: currentMonthId, slipPublicId });
+    const res = await authorizedFetch("/api/admin/delete-slip", { nuid, monthId: currentMonthId, slipPublicId, confirm: true });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -920,7 +920,7 @@ async function handleDelete(nuid, slipPublicId, triggerEl) {
   actionInFlight = true;
 
   try {
-    const res = await authorizedFetch("/api/admin/delete-slip", { nuid, monthId: currentMonthId, slipPublicId });
+    const res = await authorizedFetch("/api/admin/delete-slip", { nuid, monthId: currentMonthId, slipPublicId, confirm: true });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
