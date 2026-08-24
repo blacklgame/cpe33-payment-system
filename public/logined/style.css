@@ -76,60 +76,6 @@ h1 {
   font-size: 0.95rem;
   color: var(--text-dim);
   font-weight: 400;
-  margin-bottom: 12px;
-}
-
-.profile-actions {
-  margin-top: 4px;
-}
-
-.btn-sync-google {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--surface-2, rgba(255, 255, 255, 0.05));
-  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.15));
-  color: var(--text, #f3f4f8);
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 7px 16px;
-  border-radius: var(--radius-pill, 999px);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-sync-google:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
-}
-
-.btn-sync-google:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.btn-sync-google:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.google-icon {
-  flex-shrink: 0;
-}
-
-.sync-status-msg {
-  font-size: 0.82rem;
-  min-height: 1.1em;
-  margin-top: 8px;
-  transition: all 0.2s ease;
-}
-
-.sync-status-msg.success {
-  color: #4ade80;
-}
-
-.sync-status-msg.error {
-  color: #f87171;
 }
 
 /* Bank card — its own accent (kept green/teal, the color of "money

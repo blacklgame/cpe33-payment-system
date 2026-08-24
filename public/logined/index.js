@@ -1,7 +1,7 @@
 import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-import { signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { db, auth } from "../firebase.js";
-import { ensureSignedInAsNuid, clearActivity, signInWithGoogleToken } from "../auth-session.js";
+import { ensureSignedInAsNuid, clearActivity } from "../auth-session.js";
 
 const raw = sessionStorage.getItem("cpe33_user");
 let user = null;
@@ -32,57 +32,6 @@ if (!raw) {
 } else {
   user = JSON.parse(raw);
   renderUserProfileCard(user);
-}
-
-// Handle Google Profile Sync button
-const btnSyncGoogle = document.getElementById("btnSyncGoogle");
-const syncBtnLabel = document.getElementById("syncBtnLabel");
-const syncStatusMsg = document.getElementById("syncStatusMsg");
-
-if (btnSyncGoogle) {
-  btnSyncGoogle.addEventListener("click", async () => {
-    if (!user) return;
-    btnSyncGoogle.disabled = true;
-    if (syncBtnLabel) syncBtnLabel.textContent = "กำลังซิงค์...";
-    if (syncStatusMsg) {
-      syncStatusMsg.textContent = "";
-      syncStatusMsg.className = "sync-status-msg";
-    }
-
-    try {
-      let idToken;
-      if (auth.currentUser) {
-        idToken = await auth.currentUser.getIdToken(true);
-      } else {
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ hd: "nu.ac.th", prompt: "select_account" });
-        const result = await signInWithPopup(auth, provider);
-        idToken = await result.user.getIdToken();
-      }
-
-      const refreshed = await signInWithGoogleToken(idToken);
-      user = { id: refreshed.nuid, name: refreshed.name, email: refreshed.email, photoURL: refreshed.photoURL };
-      sessionStorage.setItem("cpe33_user", JSON.stringify(user));
-      renderUserProfileCard(user);
-
-      if (syncStatusMsg) {
-        syncStatusMsg.textContent = "ซิงค์โปรไฟล์กับ Google เรียบร้อยแล้ว!";
-        syncStatusMsg.className = "sync-status-msg success";
-        setTimeout(() => {
-          syncStatusMsg.textContent = "";
-        }, 3500);
-      }
-    } catch (err) {
-      console.error("Profile sync failed:", err);
-      if (syncStatusMsg) {
-        syncStatusMsg.textContent = err.message || "ซิงค์โปรไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง";
-        syncStatusMsg.className = "sync-status-msg error";
-      }
-    } finally {
-      btnSyncGoogle.disabled = false;
-      if (syncBtnLabel) syncBtnLabel.textContent = "ซิงค์โปรไฟล์ Google";
-    }
-  });
 }
 
 document.getElementById("logoutLink").addEventListener("click", async (e) => {
