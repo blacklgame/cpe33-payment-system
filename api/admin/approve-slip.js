@@ -121,6 +121,7 @@ module.exports = async function handler(request, response) {
         }
 
         let targetMonthUpdated = false;
+        const allocations = {};
 
         for (const mDef of allocationOrder) {
           const mId = mDef.id;
@@ -132,13 +133,6 @@ module.exports = async function handler(request, response) {
           const mRef = db.collection("payments").doc(nuid).collection("months").doc(mId);
           const updatePayload = {};
 
-          if (mRef.path === targetMonthRef.path) {
-            updatePayload.reviewStatus = "approved";
-            updatePayload.approvedBy = email;
-            updatePayload.approvedAt = admin.firestore.FieldValue.serverTimestamp();
-            targetMonthUpdated = true;
-          }
-
           if (mRemaining > 0 && fundsToAllocate > 0) {
             const allocated = Math.min(fundsToAllocate, mRemaining);
             const newPaidAmount = mPaid + allocated;
@@ -146,14 +140,23 @@ module.exports = async function handler(request, response) {
             const isPaid = newPaidAmount >= mTarget;
 
             fundsToAllocate -= allocated;
+            allocations[mId] = allocated;
 
             updatePayload.targetAmount = mTarget;
             updatePayload.paidAmount = newPaidAmount;
             updatePayload.remainingBalance = newRemaining;
             updatePayload.paid = isPaid;
+          }
 
-            transaction.set(mRef, updatePayload, { merge: true });
-          } else if (Object.keys(updatePayload).length > 0) {
+          if (mRef.path === targetMonthRef.path) {
+            updatePayload.reviewStatus = "approved";
+            updatePayload.approvedBy = email;
+            updatePayload.approvedAt = admin.firestore.FieldValue.serverTimestamp();
+            updatePayload.allocations = allocations;
+            targetMonthUpdated = true;
+          }
+
+          if (Object.keys(updatePayload).length > 0) {
             transaction.set(mRef, updatePayload, { merge: true });
           }
         }

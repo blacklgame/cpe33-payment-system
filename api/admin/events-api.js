@@ -61,8 +61,11 @@ module.exports = async function handler(req, res) {
         monthlySnap.docs.forEach((d) => {
           if (!d.ref.parent.parent) return; // skip top-level billing period doc definitions
           const data = d.data();
-          if (data.paid) {
-            monthlyIncomeTotal += Number(data.amount) || 0;
+          const target = Number(data.targetAmount || data.amount || 0);
+          const paidAmt = typeof data.paidAmount === "number" ? data.paidAmount : (data.paid ? target : 0);
+
+          if (paidAmt > 0) {
+            monthlyIncomeTotal += paidAmt;
             monthlyPaidCount += 1;
           }
         });

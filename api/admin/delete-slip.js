@@ -123,6 +123,10 @@ module.exports = async function handler(request, response) {
       }
 
       const isApprovedSlip = slipData && slipData.reviewStatus === "approved";
+      const allocations = (isApprovedSlip && slipData.allocations && typeof slipData.allocations === "object")
+        ? slipData.allocations
+        : null;
+
       let amountToDeduct = isApprovedSlip && typeof slipData.amountPaid === "number" && slipData.amountPaid > 0
         ? slipData.amountPaid
         : 0;
@@ -135,7 +139,42 @@ module.exports = async function handler(request, response) {
         }
       }
 
-      if (amountToDeduct > 0) {
+      if (allocations && Object.keys(allocations).length > 0) {
+        // Precise allocation reversal: deduct exactly what this specific slip contributed to each month!
+        Object.entries(allocations).forEach(([mId, allocatedAmount]) => {
+          const mRef = monthsSubcollRef.doc(mId);
+          const mSnap = userMonthsMap[mId] || {};
+          const mTarget = mSnap.targetAmount || mSnap.amount || 0;
+          const mPaid = mSnap.paidAmount || (mSnap.paid ? mTarget : 0);
+          const newPaidAmount = Math.max(0, mPaid - (Number(allocatedAmount) || 0));
+          const newRemaining = Math.max(0, mTarget - newPaidAmount);
+          const isPaid = newPaidAmount >= mTarget && mTarget > 0;
+
+          const updatePayload = {
+            targetAmount: mTarget,
+            paidAmount: newPaidAmount,
+            remainingBalance: newRemaining,
+            paid: isPaid
+          };
+
+          if (mRef.path === targetDocRef.path) {
+            updatePayload.reviewStatus = "rejected";
+            updatePayload.rejectedBy = email;
+            updatePayload.rejectedAt = admin.firestore.FieldValue.serverTimestamp();
+            updatePayload.slipUrl = admin.firestore.FieldValue.delete();
+            updatePayload.slipPublicId = admin.firestore.FieldValue.delete();
+            updatePayload.fileName = admin.firestore.FieldValue.delete();
+            updatePayload.amountPaid = admin.firestore.FieldValue.delete();
+            updatePayload.paymentMode = admin.firestore.FieldValue.delete();
+            updatePayload.approvedBy = admin.firestore.FieldValue.delete();
+            updatePayload.approvedAt = admin.firestore.FieldValue.delete();
+            updatePayload.allocations = admin.firestore.FieldValue.delete();
+          }
+
+          transaction.set(mRef, updatePayload, { merge: true });
+        });
+      } else if (amountToDeduct > 0) {
+        // Fallback for legacy slips: deduct backwards
         const monthsSnap = await transaction.get(db.collection("months"));
         const allMonthsDescending = monthsSnap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
@@ -174,6 +213,7 @@ module.exports = async function handler(request, response) {
               updatePayload.paymentMode = admin.firestore.FieldValue.delete();
               updatePayload.approvedBy = admin.firestore.FieldValue.delete();
               updatePayload.approvedAt = admin.firestore.FieldValue.delete();
+              updatePayload.allocations = admin.firestore.FieldValue.delete();
             }
 
             transaction.set(mRef, updatePayload, { merge: true });
@@ -191,7 +231,8 @@ module.exports = async function handler(request, response) {
         amountPaid: admin.firestore.FieldValue.delete(),
         paymentMode: admin.firestore.FieldValue.delete(),
         approvedBy: admin.firestore.FieldValue.delete(),
-        approvedAt: admin.firestore.FieldValue.delete()
+        approvedAt: admin.firestore.FieldValue.delete(),
+        allocations: admin.firestore.FieldValue.delete()
       };
 
       transaction.set(targetDocRef, targetUpdate, { merge: true });
