@@ -61,11 +61,23 @@ if (!raw) {
 
   const avatarEl = document.querySelector(".avatar-placeholder");
   if (avatarEl) {
+    const initial = user.name ? user.name.trim()[0].toUpperCase() : "?";
     if (user.photoURL) {
-      const initial = (user.name || "?").trim()[0].toUpperCase();
-      avatarEl.innerHTML = `<img src="${user.photoURL}" class="avatar-img" alt="Profile picture" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.onerror=null; this.remove(); this.parentNode.textContent='${initial}';">`;
+      avatarEl.innerHTML = "";
+      const img = document.createElement("img");
+      img.className = "avatar-img";
+      img.src = user.photoURL;
+      img.alt = "";
+      img.referrerPolicy = "no-referrer";
+      img.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:50%;";
+      img.onerror = () => {
+        avatarEl.innerHTML = "";
+        avatarEl.textContent = initial;
+      };
+      avatarEl.appendChild(img);
     } else {
-      avatarEl.textContent = user.name ? user.name.trim()[0].toUpperCase() : "?";
+      avatarEl.innerHTML = "";
+      avatarEl.textContent = initial;
     }
   }
 

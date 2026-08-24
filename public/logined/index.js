@@ -18,11 +18,22 @@ function renderUserProfileCard(u) {
   if (nuidBadgeEl) nuidBadgeEl.textContent = `รหัสนิสิต: ${u.id || "-"}`;
 
   if (avatarEl) {
+    const initial = u.name ? u.name.trim()[0].toUpperCase() : "?";
     if (u.photoURL) {
-      const initial = (u.name || "?").trim()[0].toUpperCase();
-      avatarEl.innerHTML = `<img src="${u.photoURL}" class="avatar-img" alt="Google Profile Picture" onerror="this.onerror=null; this.remove(); document.getElementById('userAvatar').textContent='${initial}';">`;
+      avatarEl.innerHTML = "";
+      const img = document.createElement("img");
+      img.className = "avatar-img";
+      img.src = u.photoURL;
+      img.alt = "";
+      img.referrerPolicy = "no-referrer";
+      img.onerror = () => {
+        avatarEl.innerHTML = "";
+        avatarEl.textContent = initial;
+      };
+      avatarEl.appendChild(img);
     } else {
-      avatarEl.textContent = u.name ? u.name.trim()[0].toUpperCase() : "?";
+      avatarEl.innerHTML = "";
+      avatarEl.textContent = initial;
     }
   }
 }
