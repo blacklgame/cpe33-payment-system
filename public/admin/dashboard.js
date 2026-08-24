@@ -260,12 +260,10 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
     }
 
     const override = statusByNuid[nuid] && statusByNuid[nuid].studentStatus;
-    if (override === "unpaid") {
+    if (override === "termination") {
       paid = false;
       paidAmount = 0;
       remainingBalance = targetAmount;
-    } else if (override === "termination") {
-      paid = false;
     }
 
     let displayStatus = "unpaid";
@@ -843,7 +841,8 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
 
 function applyCardStatusClass(card, studentStatus) {
   Object.values(STATUS_META).forEach((meta) => card.classList.remove(meta.cardClass));
-  card.classList.add(STATUS_META[studentStatus].cardClass);
+  const meta = STATUS_META[studentStatus] || STATUS_META.unpaid;
+  card.classList.add(meta.cardClass);
 }
 
 async function handleStatusChange(nuid, newStatus, selectEl, card) {
