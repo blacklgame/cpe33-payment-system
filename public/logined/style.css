@@ -26,11 +26,11 @@ h1 {
 }
 
 .avatar-placeholder {
-  width: 60px;
-  height: 60px;
+  width: 64px;
+  height: 64px;
   background: var(--accent-gradient);
   border-radius: 50%;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -38,18 +38,98 @@ h1 {
   font-weight: 800;
   color: #0a0a0f;
   user-select: none;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.25);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+}
+
+.avatar-placeholder img.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .user-name {
   font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.user-nuid {
+  margin-bottom: 6px;
+}
+
+.nuid-badge {
+  display: inline-block;
+  font-size: 0.85rem;
   font-weight: 600;
-  margin-bottom: 4px;
+  color: var(--accent-light, #a78bfa);
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  padding: 3px 12px;
+  border-radius: var(--radius-pill, 999px);
+  letter-spacing: 0.5px;
 }
 
 .user-email {
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--text-dim);
   font-weight: 400;
+  margin-bottom: 12px;
+}
+
+.profile-actions {
+  margin-top: 4px;
+}
+
+.btn-sync-google {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.15));
+  color: var(--text, #f3f4f8);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: var(--radius-pill, 999px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-sync-google:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-sync-google:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-sync-google:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.google-icon {
+  flex-shrink: 0;
+}
+
+.sync-status-msg {
+  font-size: 0.82rem;
+  min-height: 1.1em;
+  margin-top: 8px;
+  transition: all 0.2s ease;
+}
+
+.sync-status-msg.success {
+  color: #4ade80;
+}
+
+.sync-status-msg.error {
+  color: #f87171;
 }
 
 /* Bank card — its own accent (kept green/teal, the color of "money

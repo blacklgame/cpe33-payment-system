@@ -63,10 +63,10 @@ export async function signInWithGoogleToken(idToken) {
     throw err;
   }
 
-  const { token, nuid, name, email } = await res.json();
+  const { token, nuid, name, email, photoURL } = await res.json();
   await signInWithCustomToken(auth, token);
   touchActivity();
-  return { nuid, name, email };
+  return { nuid, name, email, photoURL };
 }
 
 // Use on protected pages (logined/, stats/) that load after login

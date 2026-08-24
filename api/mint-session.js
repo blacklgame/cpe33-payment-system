@@ -71,13 +71,26 @@ module.exports = async function handler(request, response) {
       const userDoc = querySnap.docs[0];
       const nuid = userDoc.id;
       const userData = userDoc.data() || {};
+      const googlePhotoUrl = decodedToken.picture || null;
+
+      if (googlePhotoUrl && userData.photoURL !== googlePhotoUrl) {
+        try {
+          await db.collection("users").doc(nuid).set({
+            photoURL: googlePhotoUrl,
+            lastGoogleSync: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        } catch (syncErr) {
+          console.warn("Failed to sync Google photoURL to users collection:", syncErr);
+        }
+      }
 
       const token = await admin.auth().createCustomToken(nuid);
       response.status(200).json({
         token,
         nuid,
-        name: userData.name || "",
-        email: userData.email || googleEmail
+        name: userData.name || decodedToken.name || "",
+        email: userData.email || googleEmail,
+        photoURL: googlePhotoUrl || userData.photoURL || null
       });
       return;
     }

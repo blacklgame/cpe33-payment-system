@@ -61,7 +61,12 @@ if (!raw) {
 
   const avatarEl = document.querySelector(".avatar-placeholder");
   if (avatarEl) {
-    avatarEl.textContent = user.name ? user.name.trim()[0].toUpperCase() : "?";
+    if (user.photoURL) {
+      const initial = (user.name || "?").trim()[0].toUpperCase();
+      avatarEl.innerHTML = `<img src="${user.photoURL}" class="avatar-img" alt="Profile picture" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.onerror=null; this.remove(); this.parentNode.textContent='${initial}';">`;
+    } else {
+      avatarEl.textContent = user.name ? user.name.trim()[0].toUpperCase() : "?";
+    }
   }
 
   const statusCard = document.getElementById("statusCard");

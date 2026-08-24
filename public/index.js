@@ -121,10 +121,10 @@ signInBtn.addEventListener("click", async () => {
     const result = await signInWithPopup(auth, provider);
     const idToken = await result.user.getIdToken();
 
-    const { nuid, name, email } = await signInWithGoogleToken(idToken);
+    const { nuid, name, email, photoURL } = await signInWithGoogleToken(idToken);
 
     // Save user details for session persistence across pages
-    sessionStorage.setItem("cpe33_user", JSON.stringify({ id: nuid, name, email }));
+    sessionStorage.setItem("cpe33_user", JSON.stringify({ id: nuid, name, email, photoURL: photoURL || result.user.photoURL || null }));
 
     window.location.href = "./logined/index.html";
   } catch (err) {
