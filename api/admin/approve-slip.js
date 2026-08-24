@@ -74,17 +74,21 @@ module.exports = async function handler(request, response) {
         let targetMonthRef = null;
         let slipData = null;
 
+        // Identify target month doc and slip data
+        let targetMonthId = null;
         userMonthsSnap.docs.forEach((d) => {
           const data = d.data();
           userMonthsMap[d.id] = data;
           if ((monthId === "ALL" || d.id === monthId) && data.reviewStatus === "pending") {
             targetMonthRef = d.ref;
+            targetMonthId = d.id;
             slipData = data;
           }
         });
 
         if (!targetMonthRef && monthId !== "ALL") {
           targetMonthRef = db.collection("payments").doc(nuid).collection("months").doc(monthId);
+          targetMonthId = monthId;
           const snap = await transaction.get(targetMonthRef);
           if (snap.exists && snap.data().reviewStatus === "pending") {
             slipData = snap.data();
@@ -104,14 +108,36 @@ module.exports = async function handler(request, response) {
           .map((d) => ({ id: d.id, ...d.data() }))
           .sort((a, b) => a.id.localeCompare(b.id));
 
+        // Order of allocation:
+        // If specific month (targetMonthId), allocate to targetMonthId first, then remaining months sorted oldest first.
+        // If monthId === "ALL", sort all months oldest first.
+        let allocationOrder = [];
+        if (targetMonthId && targetMonthId !== "ALL") {
+          const targetDef = allMonths.find((m) => m.id === targetMonthId) || { id: targetMonthId };
+          const otherMonths = allMonths.filter((m) => m.id !== targetMonthId);
+          allocationOrder = [targetDef, ...otherMonths];
+        } else {
+          allocationOrder = [...allMonths];
+        }
+
         let targetMonthUpdated = false;
 
-        for (const mDef of allMonths) {
+        for (const mDef of allocationOrder) {
           const mId = mDef.id;
           const mSnap = userMonthsMap[mId] || {};
           const mTarget = mSnap.targetAmount || mSnap.amount || mDef.amount || 0;
           const mPaid = mSnap.paidAmount || (mSnap.paid ? mTarget : 0);
           const mRemaining = Math.max(0, mTarget - mPaid);
+
+          const mRef = db.collection("payments").doc(nuid).collection("months").doc(mId);
+          const updatePayload = {};
+
+          if (mRef.path === targetMonthRef.path) {
+            updatePayload.reviewStatus = "approved";
+            updatePayload.approvedBy = email;
+            updatePayload.approvedAt = admin.firestore.FieldValue.serverTimestamp();
+            targetMonthUpdated = true;
+          }
 
           if (mRemaining > 0 && fundsToAllocate > 0) {
             const allocated = Math.min(fundsToAllocate, mRemaining);
@@ -121,21 +147,13 @@ module.exports = async function handler(request, response) {
 
             fundsToAllocate -= allocated;
 
-            const mRef = db.collection("payments").doc(nuid).collection("months").doc(mId);
-            const updatePayload = {
-              targetAmount: mTarget,
-              paidAmount: newPaidAmount,
-              remainingBalance: newRemaining,
-              paid: isPaid
-            };
+            updatePayload.targetAmount = mTarget;
+            updatePayload.paidAmount = newPaidAmount;
+            updatePayload.remainingBalance = newRemaining;
+            updatePayload.paid = isPaid;
 
-            if (mRef.path === targetMonthRef.path) {
-              updatePayload.reviewStatus = "approved";
-              updatePayload.approvedBy = email;
-              updatePayload.approvedAt = admin.firestore.FieldValue.serverTimestamp();
-              targetMonthUpdated = true;
-            }
-
+            transaction.set(mRef, updatePayload, { merge: true });
+          } else if (Object.keys(updatePayload).length > 0) {
             transaction.set(mRef, updatePayload, { merge: true });
           }
         }

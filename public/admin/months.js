@@ -200,12 +200,15 @@ function computeMonthStats(monthId, monthlyPayments) {
   Object.values(monthlyPayments).forEach((byMonth) => {
     const record = byMonth[monthId];
     if (!record) return;
-    if (record.paid) {
+    const target = record.targetAmount || record.amount || 0;
+    const paidAmt = typeof record.paidAmount === "number" ? record.paidAmount : (record.paid ? target : 0);
+    totalCollected += paidAmt;
+
+    if (record.paid || paidAmt >= target && target > 0) {
       paidCount += 1;
-      totalCollected += record.amount || 0;
     } else if (record.reviewStatus === "pending") {
       pendingCount += 1;
-      totalPending += record.amount || 0;
+      totalPending += (record.amountPaid || target);
     }
   });
 

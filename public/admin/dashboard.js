@@ -212,7 +212,6 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
 
     const monthDocs = Object.values(studentMonthlyMap);
     const pendingDoc = monthDocs.find((m) => m.reviewStatus === "pending");
-    const docWithSlip = pendingDoc || monthDocs.find((m) => m.slipUrl) || null;
 
     if (monthId === "ALL") {
       const sumTarget = rawMonths.reduce((sum, m) => {
@@ -230,14 +229,14 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
 
       paid = sumPaid >= sumTarget && sumTarget > 0;
       pendingReview = !!pendingDoc;
-      slipUrl = docWithSlip ? docWithSlip.slipUrl : null;
-      slipPublicId = docWithSlip ? docWithSlip.slipPublicId : null;
+      slipUrl = pendingDoc ? pendingDoc.slipUrl : (monthDocs.find((m) => m.slipUrl)?.slipUrl || null);
+      slipPublicId = pendingDoc ? pendingDoc.slipPublicId : (monthDocs.find((m) => m.slipPublicId)?.slipPublicId || null);
       amount = sumTarget;
       targetAmount = sumTarget;
       paidAmount = sumPaid;
       remainingBalance = sumRemaining;
       amountPaid = pendingDoc ? (pendingDoc.amountPaid || sumTarget) : null;
-      paymentMode = docWithSlip ? docWithSlip.paymentMode : "all";
+      paymentMode = pendingDoc ? pendingDoc.paymentMode : (monthDocs.find((m) => m.paymentMode)?.paymentMode || "all");
 
     } else {
       const monthly = studentMonthlyMap[monthId] || null;
@@ -248,19 +247,16 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
       paid = !!(monthly && (monthly.paid || mPaid >= mTarget));
       pendingReview = !!(monthly && monthly.reviewStatus === "pending");
 
-      // Use specific month's slip if present, otherwise fallback to any uploaded slip for this student
-      slipUrl = monthly?.slipUrl || (docWithSlip ? docWithSlip.slipUrl : null);
-      slipPublicId = monthly?.slipPublicId || (docWithSlip ? docWithSlip.slipPublicId : null);
-      if (!pendingReview && docWithSlip && docWithSlip.reviewStatus === "pending") {
-        pendingReview = true;
-      }
+      // Strictly scope slip to THIS month when monthId is a specific month
+      slipUrl = monthly?.slipUrl || null;
+      slipPublicId = monthly?.slipPublicId || null;
 
       amount = mTarget;
       targetAmount = mTarget;
       paidAmount = mPaid;
       remainingBalance = Math.max(0, mTarget - mPaid);
-      amountPaid = monthly?.amountPaid || (docWithSlip ? docWithSlip.amountPaid : null);
-      paymentMode = monthly?.paymentMode || (docWithSlip ? docWithSlip.paymentMode : null);
+      amountPaid = monthly?.amountPaid || null;
+      paymentMode = monthly?.paymentMode || null;
     }
 
     const override = statusByNuid[nuid] && statusByNuid[nuid].studentStatus;
@@ -271,6 +267,20 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
     } else if (override === "termination") {
       paid = false;
     }
+
+    let displayStatus = "unpaid";
+    if (override === "termination") {
+      displayStatus = "termination";
+    } else if (pendingReview) {
+      displayStatus = "pending";
+    } else if (paid) {
+      displayStatus = "paid";
+    } else if (paidAmount > 0) {
+      displayStatus = "partial";
+    } else {
+      displayStatus = "unpaid";
+    }
+
     const studentStatus = override || (paid ? "normal" : "unpaid");
 
     return {
@@ -281,6 +291,7 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
       paid,
       pendingReview,
       studentStatus,
+      displayStatus,
       slipUrl,
       slipPublicId,
       amount,
@@ -314,7 +325,7 @@ function updateMonthTotal() {
     monthPickerTotal.textContent = `รวมเก็บได้ทั้งหมด ${totalCollected.toLocaleString("th-TH")} บาท (ชำระครบ ${paidUsers.length}/${allUsers.length} คน)`;
   } else {
     const paidUsers = allUsers.filter((u) => u.paid);
-    const total = paidUsers.reduce((sum, u) => sum + (u.paidAmount || u.amount || 0), 0);
+    const total = allUsers.reduce((sum, u) => sum + (u.paidAmount || 0), 0);
     monthPickerTotal.textContent = `เก็บได้ ${total.toLocaleString("th-TH")} บาท (${paidUsers.length}/${allUsers.length} คน)`;
   }
 }
@@ -343,7 +354,7 @@ function renderMonthPicker() {
   });
 
   if (!currentMonthId || (currentMonthId !== "ALL" && !rawMonths.some((m) => m.id === currentMonthId))) {
-    currentMonthId = "ALL";
+    currentMonthId = rawMonths[0] ? rawMonths[0].id : "ALL";
   }
   monthPicker.value = currentMonthId;
 }
@@ -536,10 +547,10 @@ function renderCurrentView() {
 }
 
 function updateFilterBadges() {
-  const pendingCount = allUsers.filter((u) => u.pendingReview).length;
-  const paidCount = allUsers.filter((u) => u.paid).length;
-  const partialCount = allUsers.filter((u) => !u.paid && !u.pendingReview && u.paidAmount > 0).length;
-  const unpaidCount = allUsers.filter((u) => !u.paid && !u.pendingReview && !(u.paidAmount > 0)).length;
+  const pendingCount = allUsers.filter((u) => u.displayStatus === "pending").length;
+  const paidCount = allUsers.filter((u) => u.displayStatus === "paid").length;
+  const partialCount = allUsers.filter((u) => u.displayStatus === "partial").length;
+  const unpaidCount = allUsers.filter((u) => u.displayStatus === "unpaid").length;
 
   if (filterAllBtn) {
     filterAllBtn.classList.toggle("active", currentStatusFilter === "all");
@@ -589,13 +600,13 @@ function renderFilteredResults() {
     );
     let matchesStatus = true;
     if (currentStatusFilter === "pending") {
-      matchesStatus = u.pendingReview;
+      matchesStatus = u.displayStatus === "pending";
     } else if (currentStatusFilter === "paid") {
-      matchesStatus = u.paid;
+      matchesStatus = u.displayStatus === "paid";
     } else if (currentStatusFilter === "partial") {
-      matchesStatus = !u.paid && !u.pendingReview && u.paidAmount > 0;
+      matchesStatus = u.displayStatus === "partial";
     } else if (currentStatusFilter === "unpaid") {
-      matchesStatus = !u.paid && !u.pendingReview && !(u.paidAmount > 0);
+      matchesStatus = u.displayStatus === "unpaid";
     }
     return matchesTerm && matchesStatus;
   });
@@ -659,12 +670,15 @@ searchClear.addEventListener("click", () => {
 });
 
 const STATUS_META = {
-  normal: { label: "ปกติ", pillClass: "status-normal", cardClass: "card-normal" },
-  termination: { label: "พ้นสภาพ", pillClass: "status-termination", cardClass: "card-termination" },
-  unpaid: { label: "ยังไม่จ่าย", pillClass: "status-unpaid", cardClass: "card-unpaid" }
+  paid: { label: "จ่ายแล้ว", pillClass: "status-normal", cardClass: "card-normal" },
+  normal: { label: "ปกติ / จ่ายแล้ว", pillClass: "status-normal", cardClass: "card-normal" },
+  pending: { label: "รอตรวจสอบ", pillClass: "status-pending", cardClass: "card-pending" },
+  partial: { label: "ผ่อนจ่าย", pillClass: "status-partial", cardClass: "card-partial" },
+  unpaid: { label: "ยังไม่จ่าย", pillClass: "status-unpaid", cardClass: "card-unpaid" },
+  termination: { label: "พ้นสภาพ", pillClass: "status-termination", cardClass: "card-termination" }
 };
 
-function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus, slipUrl, slipPublicId, amount, targetAmount, paidAmount, remainingBalance, amountPaid, paymentMode }) {
+function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus, displayStatus, slipUrl, slipPublicId, amount, targetAmount, paidAmount, remainingBalance, amountPaid, paymentMode }) {
   const row = document.createElement("div");
   row.className = "stat-row";
   row.dataset.nuid = nuid;
@@ -674,40 +688,49 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
   rowIndex.textContent = index;
   row.appendChild(rowIndex);
 
-  // Defensive: fall back to "unpaid" if studentStatus is an unknown value
-  // (e.g. "rejected" stored directly in Firestore, or any future state not
-  // yet added to STATUS_META). Without this, STATUS_META[unknownKey] returns
-  // undefined and the very next .pillClass access throws a runtime error that
-  // breaks the entire row and stops the rest of the list from rendering.
-  const resolvedStatus = STATUS_META[studentStatus] ? studentStatus : "unpaid";
+  const cardStatus = displayStatus || "unpaid";
+  const meta = STATUS_META[cardStatus] || STATUS_META.unpaid;
 
   const card = document.createElement("div");
   card.className = "user-card";
-  applyCardStatusClass(card, resolvedStatus);
-  // Amber border overrides the normal status color while a slip is
-  // awaiting approval, so it stands out in the list regardless of
-  // studentStatus (usually still "unpaid" at this point, since paid
-  // only flips once approved).
+  applyCardStatusClass(card, cardStatus);
   if (pendingReview) {
     card.classList.add("pending-review");
   }
 
-  // Status control: a <select> styled as a colored pill. Admins click
-  // it and choose one of the three states -- picking a new value
-  // saves it via the server (see handleStatusChange). This is a
-  // student-wide override (termination/etc.), not scoped to a month.
+  // Status control select pill: shows current displayStatus (pending, partial, paid, unpaid, termination)
+  // and allows changing student status override (normal, termination, unpaid)
   const statusSelect = document.createElement("select");
-  statusSelect.className = `status-pill ${STATUS_META[resolvedStatus].pillClass}`;
-  statusSelect.dataset.previousValue = resolvedStatus;
-  Object.entries(STATUS_META).forEach(([value, meta]) => {
+  statusSelect.className = `status-pill ${meta.pillClass}`;
+  statusSelect.dataset.previousValue = cardStatus;
+
+  const selectOptions = [
+    { value: "normal", label: "ปกติ / จ่ายแล้ว" },
+    { value: "termination", label: "พ้นสภาพ" },
+    { value: "unpaid", label: "ยังไม่จ่าย (รีเซ็ต)" }
+  ];
+
+  if (cardStatus === "pending") {
+    selectOptions.unshift({ value: "pending", label: "รอตรวจสอบ" });
+  } else if (cardStatus === "partial") {
+    selectOptions.unshift({ value: "partial", label: "ผ่อนจ่าย" });
+  }
+
+  selectOptions.forEach((optData) => {
     const opt = document.createElement("option");
-    opt.value = value;
-    opt.textContent = meta.label;
-    if (value === resolvedStatus) opt.selected = true;
+    opt.value = optData.value;
+    opt.textContent = optData.label;
+    if (optData.value === cardStatus || (cardStatus === "paid" && optData.value === "normal")) {
+      opt.selected = true;
+    }
     statusSelect.appendChild(opt);
   });
+
   statusSelect.addEventListener("change", () => {
-    handleStatusChange(nuid, statusSelect.value, statusSelect, card);
+    const chosen = statusSelect.value;
+    if (chosen === "normal" || chosen === "termination" || chosen === "unpaid") {
+      handleStatusChange(nuid, chosen, statusSelect, card);
+    }
   });
   card.appendChild(statusSelect);
 
