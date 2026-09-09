@@ -278,18 +278,28 @@ h1 {
   appearance: none;
   -webkit-appearance: none;
   color: #ffffff;
-  padding: 7px 32px 7px 18px;
+  padding: 7px 30px 7px 16px;
   border-radius: var(--radius-pill);
   font-size: 0.88rem;
   font-weight: 700;
   font-family: inherit;
+  width: auto;
+  max-width: 220px;
+  text-align: center;
+  text-align-last: center;
+  box-sizing: border-box;
   background-repeat: no-repeat;
-  background-position: right 12px center;
+  background-position: right 10px center;
   background-size: 11px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.status-pill option { color: #000000; background-color: #ffffff; }
+.status-pill:hover {
+  transform: translateY(-1px);
+}
+
+.status-pill option { color: #000000; background-color: #ffffff; text-align: left; }
 .status-pill:disabled { opacity: 0.6; cursor: wait; }
 
 .status-normal      { background: var(--ok);     box-shadow: 0 6px 16px -6px rgba(34,197,94,0.5); }
@@ -297,6 +307,18 @@ h1 {
 .status-unpaid      { background: var(--danger);  box-shadow: 0 6px 16px -6px rgba(239,68,68,0.5); }
 .status-pending     { background: var(--warn);    box-shadow: 0 6px 16px -6px rgba(245,179,0,0.5); color: #201900; }
 .status-partial     { background: #3b82f6;        box-shadow: 0 6px 16px -6px rgba(59,130,246,0.5); color: #ffffff; }
+
+.partial-info-badge {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  display: inline-block;
+  margin-top: 4px;
+}
 
 /* Avatar */
 .avatar-placeholder {
@@ -313,8 +335,8 @@ h1 {
   user-select: none;
 }
 
-.user-name  { font-size: 1.1rem; font-weight: 600; word-break: break-word; }
-.user-email { font-size: 0.95rem; color: var(--text-dim); font-weight: 400; word-break: break-word; }
+.user-name  { font-size: 1.05rem; font-weight: 700; word-break: break-word; letter-spacing: 0.01em; }
+.user-email { font-size: 0.88rem; color: var(--text-dim); font-weight: 400; word-break: break-word; }
 
 .user-amount {
   font-size: 0.9rem;
@@ -358,6 +380,30 @@ h1 {
 .action-btn-view:hover {
   background: rgba(99, 202, 237, 0.2);
   border-color: rgba(99, 202, 237, 0.7);
+  text-decoration: none;
+}
+
+/* Edit partial payment button — blue */
+.action-btn-edit-partial {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.1);
+  color: #60a5fa;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s var(--ease);
+}
+.action-btn-edit-partial:hover {
+  background: rgba(59, 130, 246, 0.22);
+  border-color: rgba(59, 130, 246, 0.8);
   text-decoration: none;
 }
 

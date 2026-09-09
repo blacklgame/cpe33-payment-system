@@ -755,19 +755,18 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
     const pAmt = amountPaid != null ? amountPaid : (amount || 0);
     pendingInfo.textContent = `รออนุมัติสลิป ${Number(pAmt).toLocaleString("th-TH")} บาท (${modeLabel})`;
     card.appendChild(pendingInfo);
-  } else if (paidAmount != null && targetAmount != null && paidAmount > 0) {
+  } else if (paidAmount != null && targetAmount != null && paidAmount > 0 && !paid) {
+    // Partial payment — show visual progress badge
+    const pct = targetAmount > 0 ? Math.min(100, Math.round((paidAmount / targetAmount) * 100)) : 0;
+    const badge = document.createElement("div");
+    badge.className = "partial-info-badge";
+    badge.innerHTML = `💰 ชำระแล้ว <strong>${Number(paidAmount).toLocaleString("th-TH")}</strong> / ${Number(targetAmount).toLocaleString("th-TH")} บาท (${pct}%) · คงเหลือ <strong>${Number(remainingBalance || 0).toLocaleString("th-TH")} บาท</strong>`;
+    card.appendChild(badge);
+  } else if (paid && (paidAmount != null || amount != null)) {
     const amountEl = document.createElement("div");
     amountEl.className = "user-amount";
-    if (paid) {
-      amountEl.textContent = `จ่ายแล้ว ${Number(paidAmount).toLocaleString("th-TH")}/${Number(targetAmount).toLocaleString("th-TH")} บาท`;
-    } else {
-      amountEl.textContent = `ผ่อนชำระแล้ว ${Number(paidAmount).toLocaleString("th-TH")}/${Number(targetAmount).toLocaleString("th-TH")} บาท (คงเหลือ ${Number(remainingBalance || 0).toLocaleString("th-TH")} บาท)`;
-    }
-    card.appendChild(amountEl);
-  } else if (paid && amount != null) {
-    const amountEl = document.createElement("div");
-    amountEl.className = "user-amount";
-    amountEl.textContent = `จ่ายแล้ว ${Number(amount).toLocaleString("th-TH")} บาท`;
+    const displayAmt = paidAmount ?? amount ?? 0;
+    amountEl.textContent = `✅ จ่ายครบแล้ว ${Number(displayAmt).toLocaleString("th-TH")} บาท`;
     card.appendChild(amountEl);
   }
 
@@ -815,7 +814,28 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
       actions.appendChild(deleteLink);
     }
   } else {
-    if (paid || (paidAmount != null && paidAmount > 0)) {
+    if (paidAmount != null && paidAmount > 0 && !paid) {
+      // Has partial admin-recorded payment but no slip — show edit partial + reset
+      const editPartialLink = document.createElement("a");
+      editPartialLink.href = "#";
+      editPartialLink.className = "action-btn-edit-partial";
+      editPartialLink.textContent = "✏️ แก้ไขยอดผ่อน";
+      editPartialLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        handleStatusChange(nuid, "partial", statusSelect, card);
+      });
+      actions.appendChild(editPartialLink);
+
+      const resetLink = document.createElement("a");
+      resetLink.href = "#";
+      resetLink.className = "action-btn-delete";
+      resetLink.textContent = "🔄 รีเซ็ต";
+      resetLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        handleStatusChange(nuid, "unpaid", statusSelect, card);
+      });
+      actions.appendChild(resetLink);
+    } else if (paid) {
       const resetLink = document.createElement("a");
       resetLink.href = "#";
       resetLink.className = "action-btn-delete";
