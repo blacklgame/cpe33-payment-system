@@ -144,8 +144,28 @@
 .month-card-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
+}
+
+.month-edit-btn {
+  color: #3b82f6;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.month-edit-btn:hover {
+  text-decoration: underline;
+}
+
+.month-edit-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 
 .month-delete-btn {

@@ -4,7 +4,7 @@ const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { isValidNuid } = require("../_lib/validate");
 const { writeAuditLog } = require("../_lib/audit");
 
-const VALID_STATUSES = ["normal", "termination", "unpaid"];
+const VALID_STATUSES = ["normal", "termination", "unpaid", "partial"];
 
 if (!admin.apps.length) {
   const saJson = Buffer.from(
@@ -46,7 +46,7 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const { nuid, status, confirm } = request.body || {};
+    const { nuid, status, confirm, paidAmount, monthId } = request.body || {};
     if (confirm !== true) {
       response.status(400).json({ error: "Missing confirmation: set confirm=true to proceed with this destructive action" });
       return;
@@ -83,6 +83,97 @@ module.exports = async function handler(request, response) {
       { merge: true }
     );
 
+    // If status is "partial", record custom paidAmount onto month subcollection doc(s)
+    if (status === "partial") {
+      const pAmt = Number(paidAmount);
+      if (!Number.isFinite(pAmt) || pAmt < 0) {
+        response.status(400).json({ error: "Invalid or missing paidAmount for partial status" });
+        return;
+      }
+
+      if (monthId && monthId !== "ALL") {
+        const userMonthRef = paymentRef.collection("months").doc(monthId);
+        const userMonthSnap = await userMonthRef.get();
+
+        let mTarget = 0;
+        if (userMonthSnap.exists) {
+          const data = userMonthSnap.data();
+          mTarget = data.targetAmount || data.amount || 0;
+        }
+        if (mTarget <= 0) {
+          const monthDefSnap = await db.collection("months").doc(monthId).get();
+          if (monthDefSnap.exists) {
+            mTarget = monthDefSnap.data().amount || 0;
+          }
+        }
+
+        const isPaid = pAmt >= mTarget && mTarget > 0;
+        const newRemaining = Math.max(0, mTarget - pAmt);
+
+        await userMonthRef.set(
+          {
+            targetAmount: mTarget,
+            paidAmount: pAmt,
+            remainingBalance: newRemaining,
+            paid: isPaid,
+            reviewStatus: "approved",
+            approvedBy: email,
+            approvedAt: admin.firestore.FieldValue.serverTimestamp()
+          },
+          { merge: true }
+        );
+
+        if (isPaid) {
+          await paymentRef.set({ studentStatus: "normal" }, { merge: true });
+        }
+      } else {
+        // Cascade paidAmount across open months ordered oldest to newest
+        const monthsSnap = await db.collection("months").get();
+        const allMonths = monthsSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => a.id.localeCompare(b.id));
+
+        const userMonthsSnap = await paymentRef.collection("months").get();
+        const userMonthsMap = {};
+        userMonthsSnap.docs.forEach((d) => {
+          userMonthsMap[d.id] = d.data();
+        });
+
+        let fundsRemaining = pAmt;
+        const batch = db.batch();
+
+        for (const mDef of allMonths) {
+          const mId = mDef.id;
+          const uData = userMonthsMap[mId] || {};
+          const mTarget = uData.targetAmount || uData.amount || mDef.amount || 0;
+          const mRef = paymentRef.collection("months").doc(mId);
+
+          if (fundsRemaining <= 0) break;
+
+          const allocated = Math.min(fundsRemaining, mTarget);
+          fundsRemaining -= allocated;
+          const isPaid = allocated >= mTarget && mTarget > 0;
+          const rem = Math.max(0, mTarget - allocated);
+
+          batch.set(
+            mRef,
+            {
+              targetAmount: mTarget,
+              paidAmount: allocated,
+              remainingBalance: rem,
+              paid: isPaid,
+              reviewStatus: "approved",
+              approvedBy: email,
+              approvedAt: admin.firestore.FieldValue.serverTimestamp()
+            },
+            { merge: true }
+          );
+        }
+
+        await batch.commit();
+      }
+    }
+
     // If status is set to "unpaid", reset month docs as well so ledger reflects unpaid
     if (status === "unpaid") {
       const monthsSubcollRef = paymentRef.collection("months");
@@ -116,7 +207,7 @@ module.exports = async function handler(request, response) {
       await batch.commit();
     }
 
-    await writeAuditLog(db, "set_status", email, { nuid, studentStatus: status });
+    await writeAuditLog(db, "set_status", email, { nuid, studentStatus: status, paidAmount, monthId });
 
     response.status(200).json({ ok: true });
   } catch (err) {

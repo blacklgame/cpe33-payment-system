@@ -320,15 +320,65 @@ function buildMonthCard(m, stats) {
 
   const actions = document.createElement("div");
   actions.className = "month-card-actions";
+
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "month-edit-btn";
+  editBtn.textContent = "✏️ แก้ไขยอดเงิน";
+  editBtn.addEventListener("click", () => handleEditMonthAmount(m, editBtn));
+  actions.appendChild(editBtn);
+
   const deleteBtn = document.createElement("button");
   deleteBtn.type = "button";
   deleteBtn.className = "month-delete-btn";
   deleteBtn.textContent = "ลบเดือนนี้";
   deleteBtn.addEventListener("click", () => handleDeleteMonth(m, deleteBtn));
   actions.appendChild(deleteBtn);
+
   card.appendChild(actions);
 
   return card;
+}
+
+async function handleEditMonthAmount(m, triggerEl) {
+  const currentAmt = Number(m.amount || 0);
+  const input = window.prompt(
+    `แก้ไขจำนวนเงินที่ต้องชำระสำหรับเดือน "${m.label || m.id}" (บาท):\n(ข้อมูลสลิปและประวัติการชำระเงินเดิมของนิสิตจะไม่สูญหาย)`,
+    currentAmt || ""
+  );
+  if (input === null) return;
+  const newAmount = Number(input.trim());
+  if (!Number.isFinite(newAmount) || newAmount <= 0) {
+    alert("กรุณากรอกจำนวนเงินให้ถูกต้อง");
+    return;
+  }
+
+  const originalText = triggerEl.textContent;
+  triggerEl.disabled = true;
+  triggerEl.textContent = "กำลังบันทึก...";
+
+  try {
+    const yr = Number(m.year || m.id.split("-")[0]);
+    const mo = Number(m.month || m.id.split("-")[1]);
+
+    const res = await authorizedFetch("/api/admin/create-month", {
+      year: yr,
+      month: mo,
+      amount: newAmount
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || "Edit failed");
+    }
+
+    await loadMonths();
+  } catch (err) {
+    console.error("Edit month amount failed:", err);
+    alert("แก้ไขจำนวนเงินไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    triggerEl.disabled = false;
+    triggerEl.textContent = originalText;
+  }
 }
 
 async function handleDeleteMonth(m, triggerEl) {

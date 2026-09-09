@@ -704,14 +704,13 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
 
   const selectOptions = [
     { value: "normal", label: "ปกติ / จ่ายแล้ว" },
+    { value: "partial", label: "ผ่อนจ่าย (ระบุจำนวนเงิน)" },
     { value: "termination", label: "พ้นสภาพ" },
     { value: "unpaid", label: "ยังไม่จ่าย (รีเซ็ต)" }
   ];
 
   if (cardStatus === "pending") {
     selectOptions.unshift({ value: "pending", label: "รอตรวจสอบ" });
-  } else if (cardStatus === "partial") {
-    selectOptions.unshift({ value: "partial", label: "ผ่อนจ่าย" });
   }
 
   selectOptions.forEach((optData) => {
@@ -726,7 +725,7 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
 
   statusSelect.addEventListener("change", () => {
     const chosen = statusSelect.value;
-    if (chosen === "normal" || chosen === "termination" || chosen === "unpaid") {
+    if (chosen === "normal" || chosen === "partial" || chosen === "termination" || chosen === "unpaid") {
       handleStatusChange(nuid, chosen, statusSelect, card);
     }
   });
@@ -847,11 +846,37 @@ function applyCardStatusClass(card, studentStatus) {
 
 async function handleStatusChange(nuid, newStatus, selectEl, card) {
   const previousValue = selectEl.dataset.previousValue;
+  let paidAmount = null;
+
+  if (newStatus === "partial") {
+    const input = window.prompt("กรอกจำนวนเงินที่ผ่อนชำระ (บาท):", "");
+    if (input === null) {
+      selectEl.value = previousValue;
+      return;
+    }
+    paidAmount = Number(input.trim());
+    if (!Number.isFinite(paidAmount) || paidAmount < 0) {
+      alert("กรุณากรอกจำนวนเงินให้ถูกต้อง");
+      selectEl.value = previousValue;
+      return;
+    }
+  }
+
   selectEl.disabled = true;
   actionInFlight = true;
 
   try {
-    const res = await authorizedFetch("/api/admin/set-status", { nuid, status: newStatus, confirm: true });
+    const payload = {
+      nuid,
+      status: newStatus,
+      monthId: currentMonthId,
+      confirm: true
+    };
+    if (newStatus === "partial") {
+      payload.paidAmount = paidAmount;
+    }
+
+    const res = await authorizedFetch("/api/admin/set-status", payload);
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));

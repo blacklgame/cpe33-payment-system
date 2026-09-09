@@ -112,6 +112,38 @@ module.exports = async function handler(request, response) {
       { merge: true }
     );
 
+    // If month price was updated, update existing student records for this month
+    if (existing.exists) {
+      const userMonthsSnap = await db.collectionGroup("months").get();
+      const batch = db.batch();
+      let batchCount = 0;
+
+      userMonthsSnap.docs.forEach((docSnap) => {
+        if (docSnap.id === monthId) {
+          const data = docSnap.data();
+          const mPaid = typeof data.paidAmount === "number" ? data.paidAmount : (data.paid ? (data.targetAmount || data.amount || 0) : 0);
+          const newRemaining = Math.max(0, amountNum - mPaid);
+          const isPaid = mPaid >= amountNum && amountNum > 0;
+
+          batch.set(
+            docSnap.ref,
+            {
+              targetAmount: amountNum,
+              paidAmount: mPaid,
+              remainingBalance: newRemaining,
+              paid: isPaid
+            },
+            { merge: true }
+          );
+          batchCount++;
+        }
+      });
+
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+    }
+
     await writeAuditLog(db, existing.exists ? "update_month" : "create_month", email, {
       monthId,
       year: yearNum,
