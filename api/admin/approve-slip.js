@@ -51,7 +51,7 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const { nuid, monthId } = request.body || {};
+    const { nuid, monthId, verifiedAmount } = request.body || {};
     if (!nuid || typeof nuid !== "string") {
       response.status(400).json({ error: "Missing nuid" });
       return;
@@ -62,6 +62,10 @@ module.exports = async function handler(request, response) {
     }
     if (monthId !== "ALL" && !isValidMonthId(monthId)) {
       response.status(400).json({ error: "Invalid monthId" });
+      return;
+    }
+    if (typeof verifiedAmount !== "number" || verifiedAmount <= 0 || !isFinite(verifiedAmount)) {
+      response.status(400).json({ error: "verifiedAmount must be a positive number" });
       return;
     }
 
@@ -99,9 +103,9 @@ module.exports = async function handler(request, response) {
           throw new Error("NO_PENDING_SLIP");
         }
 
-        let fundsToAllocate = typeof slipData.amountPaid === "number" && slipData.amountPaid > 0
-          ? slipData.amountPaid
-          : (slipData.amount || 0);
+        // Use the admin-verified amount — NOT the student-declared slipData.amountPaid.
+        // slipData.amountPaid is kept as a display-only/audit field.
+        let fundsToAllocate = verifiedAmount;
 
         const monthsSnap = await transaction.get(db.collection("months"));
         const allMonths = monthsSnap.docs
@@ -153,6 +157,7 @@ module.exports = async function handler(request, response) {
             updatePayload.approvedBy = email;
             updatePayload.approvedAt = admin.firestore.FieldValue.serverTimestamp();
             updatePayload.allocations = allocations;
+            updatePayload.verifiedAmount = verifiedAmount; // admin-confirmed amount (audit trail)
             targetMonthUpdated = true;
           }
 
@@ -168,7 +173,8 @@ module.exports = async function handler(request, response) {
               paid: true,
               reviewStatus: "approved",
               approvedBy: email,
-              approvedAt: admin.firestore.FieldValue.serverTimestamp()
+              approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+              verifiedAmount // admin-confirmed amount (audit trail)
             },
             { merge: true }
           );

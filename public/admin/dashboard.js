@@ -789,7 +789,8 @@ function buildRow({ index, nuid, name, email, paid, pendingReview, studentStatus
       approveLink.textContent = "✅ อนุมัติ";
       approveLink.addEventListener("click", (e) => {
         e.preventDefault();
-        handleApprove(nuid, approveLink);
+        const declaredAmount = amountPaid != null ? amountPaid : (amount || 0);
+        handleApprove(nuid, approveLink, declaredAmount);
       });
       actions.appendChild(approveLink);
 
@@ -918,18 +919,27 @@ async function handleStatusChange(nuid, newStatus, selectEl, card) {
   }
 }
 
-async function handleApprove(nuid, triggerEl) {
-  const confirmed = window.confirm(
-    `ยืนยันอนุมัติสลิปของรหัสนิสิต ${nuid}?\nระบบจะเปลี่ยนสถานะเป็น "จ่ายแล้ว" สำหรับเดือนนี้`
+async function handleApprove(nuid, triggerEl, declaredAmount) {
+  const declaredDisplay = Number(declaredAmount || 0).toLocaleString("th-TH");
+  const raw = window.prompt(
+    `อนุมัติสลิปของรหัสนิสิต ${nuid}\n\nนิสิตแจ้งจำนวนเงิน: ${declaredDisplay} บาท\n\nกรุณากรอกจำนวนเงินที่ตรวจสอบแล้วจากสลิปจริง (บาท):`,
+    declaredAmount != null ? String(declaredAmount) : ""
   );
-  if (!confirmed) return;
+
+  if (raw === null) return; // admin cancelled
+
+  const verifiedAmount = Number(raw.trim());
+  if (!verifiedAmount || verifiedAmount <= 0 || isNaN(verifiedAmount)) {
+    alert("กรุณากรอกจำนวนเงินที่ถูกต้อง (ตัวเลขมากกว่า 0)");
+    return;
+  }
 
   const originalText = triggerEl.textContent;
   triggerEl.textContent = "กำลังอนุมัติ...";
   actionInFlight = true;
 
   try {
-    const res = await authorizedFetch("/api/admin/approve-slip", { nuid, monthId: currentMonthId });
+    const res = await authorizedFetch("/api/admin/approve-slip", { nuid, monthId: currentMonthId, verifiedAmount });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -947,6 +957,7 @@ async function handleApprove(nuid, triggerEl) {
     actionInFlight = false;
   }
 }
+
 
 async function handleReject(nuid, slipPublicId, triggerEl) {
   const confirmed = window.confirm(
