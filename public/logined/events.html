@@ -93,7 +93,7 @@
     <div id="eventsContainer" style="display:none;"></div>
   </main>
 
-  <!-- ── Modal: View Receipt Lightbox ── -->
+  <!-- ── Modal: View Receipt Lightbox with Rotate, Zoom & Multi-photo Navigation ── -->
   <div class="modal-overlay" id="receiptViewerModal" role="dialog" aria-modal="true" aria-labelledby="receiptViewerTitle">
     <div class="modal modal-receipt-viewer">
       <div class="receipt-viewer-header">
@@ -101,14 +101,37 @@
           <div class="modal-title" id="receiptViewerTitle">🧾 ใบเสร็จ / หลักฐาน</div>
           <div class="receipt-viewer-sub" id="receiptViewerSub"></div>
         </div>
-        <button class="receipt-viewer-close" id="receiptViewerClose" aria-label="ปิด">✕</button>
+        <div class="receipt-viewer-header-actions">
+          <span class="receipt-img-counter" id="receiptImgCounter">1 / 1</span>
+          <button class="receipt-viewer-close" id="receiptViewerClose" aria-label="ปิด">✕</button>
+        </div>
       </div>
-      <div class="receipt-viewer-body">
-        <img id="receiptViewerImg" src="" alt="ใบเสร็จ / หลักฐาน" class="receipt-full-img">
+
+      <!-- Toolbar: Rotate & Zoom -->
+      <div class="lightbox-toolbar">
+        <button type="button" class="lb-tool-btn" id="lbRotateLeft" title="หมุนซ้าย 90°">↺ หมุนซ้าย</button>
+        <button type="button" class="lb-tool-btn" id="lbRotateRight" title="หมุนขวา 90°">↻ หมุนขวา</button>
+        <div class="lb-divider"></div>
+        <button type="button" class="lb-tool-btn" id="lbZoomIn" title="ซูมเข้า">➕ ขยาย</button>
+        <button type="button" class="lb-tool-btn" id="lbZoomOut" title="ซูมออก">➖ ย่อ</button>
+        <button type="button" class="lb-tool-btn" id="lbZoomReset" title="รีเซ็ตขนาด">รีเซ็ต</button>
       </div>
+
+      <div class="receipt-viewer-body" id="receiptViewerBody">
+        <button type="button" class="lb-nav-btn lb-nav-prev" id="lbNavPrev" title="รูปก่อนหน้า (←)">‹</button>
+        <div class="receipt-img-canvas" id="receiptImgCanvas">
+          <img id="receiptViewerImg" src="" alt="ใบเสร็จ / หลักฐาน" class="receipt-full-img">
+        </div>
+        <button type="button" class="lb-nav-btn lb-nav-next" id="lbNavNext" title="รูปถัดไป (→)">›</button>
+      </div>
+
+      <div class="lightbox-strip-container" id="lightboxStripContainer" style="display:none;">
+        <div class="lightbox-strip-thumbs" id="lightboxStripThumbs"></div>
+      </div>
+
       <div class="receipt-viewer-footer">
         <a id="receiptViewerOpenTab" href="#" target="_blank" rel="noopener noreferrer" class="btn-open-tab">
-          ↗ เปิดรูปภาพในแท็บใหม่
+          ↗ เปิดรูปภาพเต็ม
         </a>
         <button class="btn-cancel" id="receiptViewerCloseBtn">ปิด</button>
       </div>

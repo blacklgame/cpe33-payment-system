@@ -29,9 +29,25 @@ const receiptViewerModal     = document.getElementById("receiptViewerModal");
 const receiptViewerTitle     = document.getElementById("receiptViewerTitle");
 const receiptViewerSub       = document.getElementById("receiptViewerSub");
 const receiptViewerClose     = document.getElementById("receiptViewerClose");
+const receiptImgCounter      = document.getElementById("receiptImgCounter");
+const lbRotateLeft           = document.getElementById("lbRotateLeft");
+const lbRotateRight          = document.getElementById("lbRotateRight");
+const lbZoomIn               = document.getElementById("lbZoomIn");
+const lbZoomOut              = document.getElementById("lbZoomOut");
+const lbZoomReset            = document.getElementById("lbZoomReset");
+const lbNavPrev              = document.getElementById("lbNavPrev");
+const lbNavNext              = document.getElementById("lbNavNext");
 const receiptViewerImg       = document.getElementById("receiptViewerImg");
 const receiptViewerOpenTab   = document.getElementById("receiptViewerOpenTab");
 const receiptViewerCloseBtn  = document.getElementById("receiptViewerCloseBtn");
+const lightboxStripContainer = document.getElementById("lightboxStripContainer");
+const lightboxStripThumbs    = document.getElementById("lightboxStripThumbs");
+
+// Lightbox state
+let lbImages       = [];
+let lbCurrentIndex = 0;
+let lbRotation     = 0;
+let lbZoom         = 1;
 
 // ── Auth guard ────────────────────────────────────────────────
 let currentUser = null;
@@ -241,9 +257,14 @@ function renderEvents(events, monthlyIncomeTotal = 0, monthlyPaidCount = 0) {
           : "";
         const qtyLabel = tx.quantity > 1 ? ` × ${tx.quantity}` : "";
 
-        const receiptBtnHtml = tx.receiptUrl ? `
-          <button class="mini-receipt-btn" data-view-receipt="${escapeHtml(tx.receiptUrl)}" data-label="${escapeHtml(tx.label)}" data-meta="${dateStr}${qtyLabel}" title="ดูใบเสร็จ / หลักฐาน">
-            🧾 ใบเสร็จ
+        const txReceipts = Array.isArray(tx.receipts) && tx.receipts.length > 0
+          ? tx.receipts
+          : (tx.receiptUrl ? [{ url: tx.receiptUrl }] : []);
+
+        const countLabel = txReceipts.length > 1 ? ` (${txReceipts.length})` : "";
+        const receiptBtnHtml = txReceipts.length > 0 ? `
+          <button class="mini-receipt-btn" data-view-receipt="${tx.id}" title="ดูใบเสร็จ / หลักฐาน">
+            🧾 ใบเสร็จ${countLabel}
           </button>` : "";
 
         row.innerHTML = `
@@ -260,7 +281,12 @@ function renderEvents(events, monthlyIncomeTotal = 0, monthlyPaidCount = 0) {
         if (receiptBtn) {
           receiptBtn.addEventListener("click", (e) => {
             e.stopPropagation();
-            openReceiptLightbox(tx.receiptUrl, tx.label, `${dateStr}${qtyLabel}`);
+            const imgs = txReceipts.map((r, idx) => ({
+              url: r.url,
+              title: tx.label,
+              subtitle: `${dateStr}${qtyLabel}${txReceipts.length > 1 ? ` · รูปที่ ${idx + 1}/${txReceipts.length}` : ""}`
+            }));
+            openReceiptLightbox(imgs, 0);
           });
         }
 
@@ -286,13 +312,113 @@ function renderEvents(events, monthlyIncomeTotal = 0, monthlyPaidCount = 0) {
 }
 
 // ── Lightbox / Receipt Viewer ─────────────────────────────────
-function openReceiptLightbox(url, title, subtitle) {
-  if (!receiptViewerModal) return;
-  receiptViewerTitle.textContent = "🧾 " + (title || "ใบเสร็จ");
-  receiptViewerSub.textContent   = subtitle || "";
-  receiptViewerImg.src           = url;
-  receiptViewerOpenTab.href      = url;
+function openReceiptLightbox(images, startIndex = 0) {
+  if (!images || images.length === 0 || !receiptViewerModal) return;
+  lbImages = Array.isArray(images) ? images : [{ url: images, title: "ใบเสร็จ", subtitle: "" }];
+  lbCurrentIndex = Math.max(0, Math.min(startIndex, lbImages.length - 1));
+  lbRotation = 0;
+  lbZoom = 1;
+
+  showLightboxImage(lbCurrentIndex);
   openModal(receiptViewerModal);
+}
+
+function updateLightboxTransform() {
+  if (receiptViewerImg) {
+    receiptViewerImg.style.transform = `scale(${lbZoom}) rotate(${lbRotation}deg)`;
+  }
+}
+
+function showLightboxImage(index) {
+  if (index < 0 || index >= lbImages.length) return;
+  lbCurrentIndex = index;
+  lbRotation = 0;
+  lbZoom = 1;
+  updateLightboxTransform();
+
+  const imgObj = lbImages[index];
+  if (receiptViewerImg) receiptViewerImg.src = imgObj.url;
+  if (receiptViewerTitle) receiptViewerTitle.textContent = "🧾 " + (imgObj.title || "ใบเสร็จ");
+  if (receiptViewerSub) receiptViewerSub.textContent = imgObj.subtitle || "";
+  if (receiptViewerOpenTab) receiptViewerOpenTab.href = imgObj.url;
+  if (receiptImgCounter) receiptImgCounter.textContent = `${index + 1} / ${lbImages.length}`;
+
+  // Multi-image controls
+  if (lbImages.length > 1) {
+    if (lbNavPrev) lbNavPrev.style.display = "flex";
+    if (lbNavNext) lbNavNext.style.display = "flex";
+    if (lightboxStripContainer) lightboxStripContainer.style.display = "block";
+    renderLightboxStrip();
+  } else {
+    if (lbNavPrev) lbNavPrev.style.display = "none";
+    if (lbNavNext) lbNavNext.style.display = "none";
+    if (lightboxStripContainer) lightboxStripContainer.style.display = "none";
+  }
+}
+
+function renderLightboxStrip() {
+  if (!lightboxStripThumbs) return;
+  lightboxStripThumbs.innerHTML = "";
+  lbImages.forEach((imgObj, idx) => {
+    const thumb = document.createElement("div");
+    thumb.className = `lb-strip-thumb ${idx === lbCurrentIndex ? "active" : ""}`;
+    thumb.innerHTML = `<img src="${escapeHtml(imgObj.url)}" alt="thumb">`;
+    thumb.addEventListener("click", () => showLightboxImage(idx));
+    lightboxStripThumbs.appendChild(thumb);
+  });
+}
+
+// Rotate & Zoom Controls
+if (lbRotateLeft) {
+  lbRotateLeft.addEventListener("click", () => {
+    lbRotation = (lbRotation - 90) % 360;
+    updateLightboxTransform();
+  });
+}
+
+if (lbRotateRight) {
+  lbRotateRight.addEventListener("click", () => {
+    lbRotation = (lbRotation + 90) % 360;
+    updateLightboxTransform();
+  });
+}
+
+if (lbZoomIn) {
+  lbZoomIn.addEventListener("click", () => {
+    lbZoom = Math.min(3.0, Number((lbZoom + 0.25).toFixed(2)));
+    updateLightboxTransform();
+  });
+}
+
+if (lbZoomOut) {
+  lbZoomOut.addEventListener("click", () => {
+    lbZoom = Math.max(0.5, Number((lbZoom - 0.25).toFixed(2)));
+    updateLightboxTransform();
+  });
+}
+
+if (lbZoomReset) {
+  lbZoomReset.addEventListener("click", () => {
+    lbZoom = 1;
+    lbRotation = 0;
+    updateLightboxTransform();
+  });
+}
+
+if (lbNavPrev) {
+  lbNavPrev.addEventListener("click", () => {
+    if (lbImages.length <= 1) return;
+    const nextIdx = (lbCurrentIndex - 1 + lbImages.length) % lbImages.length;
+    showLightboxImage(nextIdx);
+  });
+}
+
+if (lbNavNext) {
+  lbNavNext.addEventListener("click", () => {
+    if (lbImages.length <= 1) return;
+    const nextIdx = (lbCurrentIndex + 1) % lbImages.length;
+    showLightboxImage(nextIdx);
+  });
 }
 
 if (receiptViewerClose) {
@@ -309,17 +435,66 @@ if (receiptViewerModal) {
 
 // ── Modal helpers ─────────────────────────────────────────────
 function openModal(overlay) {
+  if (!overlay) return;
   overlay.classList.add("open");
   document.body.style.overflow = "hidden";
 }
 
 function closeModal(overlay) {
+  if (!overlay) return;
   overlay.classList.remove("open");
   document.body.style.overflow = "";
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && receiptViewerModal && receiptViewerModal.classList.contains("open")) {
-    closeModal(receiptViewerModal);
+  if (receiptViewerModal && receiptViewerModal.classList.contains("open")) {
+    if (e.key === "Escape") {
+      closeModal(receiptViewerModal);
+    } else if (e.key === "ArrowLeft") {
+      if (lbImages.length > 1) {
+        showLightboxImage((lbCurrentIndex - 1 + lbImages.length) % lbImages.length);
+      }
+    } else if (e.key === "ArrowRight") {
+      if (lbImages.length > 1) {
+        showLightboxImage((lbCurrentIndex + 1) % lbImages.length);
+      }
+    } else if (e.key.toLowerCase() === "r") {
+      lbRotation = (lbRotation + 90) % 360;
+      updateLightboxTransform();
+    } else if (e.key === "+" || e.key === "=") {
+      lbZoom = Math.min(3.0, Number((lbZoom + 0.25).toFixed(2)));
+      updateLightboxTransform();
+    } else if (e.key === "-" || e.key === "_") {
+      lbZoom = Math.max(0.5, Number((lbZoom - 0.25).toFixed(2)));
+      updateLightboxTransform();
+    }
   }
 });
+
+// Touch swipe gestures for mobile Lightbox
+let lbTouchStartX = 0;
+let lbTouchStartY = 0;
+const lbCanvas = document.querySelector(".receipt-viewer-canvas");
+if (lbCanvas) {
+  lbCanvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      lbTouchStartX = e.touches[0].clientX;
+      lbTouchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  lbCanvas.addEventListener("touchend", (e) => {
+    if (e.changedTouches.length === 1 && lbImages.length > 1) {
+      const diffX = e.changedTouches[0].clientX - lbTouchStartX;
+      const diffY = e.changedTouches[0].clientY - lbTouchStartY;
+      if (Math.abs(diffX) > 45 && Math.abs(diffX) > Math.abs(diffY) * 1.4) {
+        if (diffX < 0) {
+          showLightboxImage((lbCurrentIndex + 1) % lbImages.length);
+        } else {
+          showLightboxImage((lbCurrentIndex - 1 + lbImages.length) % lbImages.length);
+        }
+      }
+    }
+  }, { passive: true });
+}
+

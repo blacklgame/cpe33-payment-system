@@ -76,6 +76,13 @@ module.exports = async function handler(req, res) {
       }
 
       const amt = (Number(t.amount) || 0) * (Number(t.quantity) || 1);
+      let receipts = [];
+      if (Array.isArray(t.receipts)) {
+        receipts = t.receipts.filter((r) => r && typeof r.url === "string" && r.url.startsWith("https://"));
+      } else if (t.receiptUrl) {
+        receipts = [{ url: t.receiptUrl }];
+      }
+
       txsByEvent[eventId].push({
         id: doc.id,
         type: t.type,
@@ -84,7 +91,8 @@ module.exports = async function handler(req, res) {
         quantity: t.quantity || 1,
         totalAmount: t.totalAmount || amt,
         note: t.note || "",
-        receiptUrl: t.receiptUrl || null,
+        receipts,
+        receiptUrl: receipts[0]?.url || t.receiptUrl || null,
         createdAt: t.createdAt ? t.createdAt.toDate().toISOString() : null
       });
     });

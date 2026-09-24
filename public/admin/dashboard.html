@@ -45,7 +45,12 @@
         <span>ดูข้อมูลของเดือน</span>
         <select id="monthPicker" class="input-field month-picker-select"></select>
       </label>
-      <div class="month-picker-total" id="monthPickerTotal"></div>
+      <div class="month-picker-right">
+        <button type="button" id="fastReviewBtn" class="btn-fast-review" style="display:none;">
+          ⚡ ตรวจสลิปด่วน <span id="fastReviewBadge" class="fast-review-badge">0</span>
+        </button>
+        <div class="month-picker-total" id="monthPickerTotal"></div>
+      </div>
     </div>
 
     <div class="toolbar" id="toolbar" style="display:none;">
@@ -70,6 +75,82 @@
 
     <div id="rowsContainer"></div>
   </main>
+
+  <!-- ── Modal: Fast Slip Review Modal ── -->
+  <div class="modal-overlay" id="fastReviewModal" role="dialog" aria-modal="true" aria-labelledby="fastReviewTitle">
+    <div class="modal modal-fast-review">
+      <div class="fast-review-header">
+        <div>
+          <div class="modal-title" id="fastReviewTitle">⚡ ตรวจสลิปด่วน (Fast Review)</div>
+          <div class="fast-review-progress-text" id="fastReviewProgress">รายการที่ 1 จาก 5</div>
+        </div>
+        <button class="fast-review-close" id="fastReviewClose" aria-label="ปิด">✕</button>
+      </div>
+
+      <div class="fast-review-content">
+        <!-- Left panel: Slip image with rotate/zoom -->
+        <div class="fast-review-img-panel">
+          <div class="fast-review-toolbar">
+            <button type="button" class="fr-tool-btn" id="frRotateLeft" title="หมุนซ้าย 90°">↺ หมุนซ้าย</button>
+            <button type="button" class="fr-tool-btn" id="frRotateRight" title="หมุนขวา 90°">↻ หมุนขวา</button>
+            <div class="fr-divider"></div>
+            <button type="button" class="fr-tool-btn" id="frZoomIn" title="ซูมเข้า">➕</button>
+            <button type="button" class="fr-tool-btn" id="frZoomOut" title="ซูมออก">➖</button>
+            <button type="button" class="fr-tool-btn" id="frZoomReset" title="รีเซ็ตขนาด">100%</button>
+            <a id="frOpenTab" href="#" target="_blank" rel="noopener noreferrer" class="fr-tool-btn fr-open-link">↗ เปิดเต็มจอ</a>
+          </div>
+          <div class="fast-review-canvas">
+            <img id="frSlipImg" src="" alt="สลิปโอนเงิน" class="fast-review-img">
+          </div>
+        </div>
+
+        <!-- Right panel: Student details and approval form -->
+        <div class="fast-review-info-panel">
+          <div class="fr-student-card">
+            <div class="fr-student-name" id="frStudentName">ชื่อนิสิต</div>
+            <div class="fr-student-meta" id="frStudentMeta">รหัสนิสิต: 65XXXXXX · เดือน: ม.ค. 2026</div>
+            <div class="fr-mode-tag" id="frPaymentMode">ชำระเต็มจำนวน</div>
+          </div>
+
+          <div class="fr-amount-group">
+            <div class="fr-amount-row">
+              <span class="fr-amount-label">ยอดที่นิสิตแจ้ง:</span>
+              <span class="fr-amount-value" id="frDeclaredAmount">฿ 200.00</span>
+            </div>
+            <div class="fr-amount-row">
+              <span class="fr-amount-label">ยอดเป้าหมายของเดือน:</span>
+              <span class="fr-amount-value" id="frTargetAmount">฿ 200.00</span>
+            </div>
+
+            <label class="field-label" style="margin-top:10px;">
+              <span>ยอดเงินตรวจสอบจากสลิปจริง (บาท)</span>
+              <input type="number" id="frVerifiedAmountInput" class="input-field" step="0.01" min="1" placeholder="200.00">
+            </label>
+          </div>
+
+          <div class="fr-status-msg" id="frStatusMsg"></div>
+
+          <div class="fr-actions-row">
+            <button type="button" class="btn-fr-approve" id="frApproveBtn">
+              ✅ อนุมัติ (Enter)
+            </button>
+            <button type="button" class="btn-fr-reject" id="frRejectBtn">
+              ❌ ปฏิเสธ (Del)
+            </button>
+          </div>
+
+          <div class="fr-nav-row">
+            <button type="button" class="btn-fr-nav" id="frPrevBtn">‹ ก่อนหน้า (←)</button>
+            <button type="button" class="btn-fr-nav" id="frNextBtn">ข้ามไปก่อน (→) ›</button>
+          </div>
+
+          <p class="fr-shortcuts-hint">
+            ⌨️ <b>คีย์ลัด:</b> <kbd>Enter</kbd> อนุมัติ · <kbd>Del</kbd> ปฏิเสธ · <kbd>←</kbd>/<kbd>→</kbd> สลับรายการ · <kbd>R</kbd> หมุนรูป · <kbd>Esc</kbd> ปิด
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="dashboard.js"></script>
 </body>

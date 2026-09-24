@@ -223,7 +223,7 @@ module.exports = async function handler(req, res) {
 
       if (action === "add-transaction") {
         // --- Add Transaction (Uses Transaction to update Event totals) ---
-        const { eventId, type, label, amount, quantity, note, receiptUrl, receiptPublicId } = req.body || {};
+        const { eventId, type, label, amount, quantity, note, receipts, receiptUrl, receiptPublicId } = req.body || {};
         if (!eventId || typeof eventId !== "string") {
           res.status(400).json({ error: "eventId is required" }); return;
         }
@@ -250,8 +250,14 @@ module.exports = async function handler(req, res) {
         const quantityNum = Number.isFinite(qty) && qty >= 1 ? Math.min(1000, Math.floor(qty)) : 1;
         const totalAmount = amountNum * quantityNum;
 
-        const cleanReceiptUrl = typeof receiptUrl === "string" && receiptUrl.startsWith("https://") ? receiptUrl.trim() : null;
-        const cleanReceiptPublicId = typeof receiptPublicId === "string" && receiptPublicId.trim().length > 0 ? receiptPublicId.trim() : null;
+        let cleanReceipts = [];
+        if (Array.isArray(receipts)) {
+          cleanReceipts = receipts
+            .filter((r) => r && typeof r.url === "string" && r.url.startsWith("https://"))
+            .map((r) => ({ url: r.url.trim(), publicId: typeof r.publicId === "string" ? r.publicId.trim() : null }));
+        } else if (typeof receiptUrl === "string" && receiptUrl.startsWith("https://")) {
+          cleanReceipts = [{ url: receiptUrl.trim(), publicId: typeof receiptPublicId === "string" ? receiptPublicId.trim() : null }];
+        }
 
         const eventRef = db.collection("events").doc(eventId);
         const newTxRef = eventRef.collection("transactions").doc();
@@ -287,8 +293,9 @@ module.exports = async function handler(req, res) {
             quantity: quantityNum,
             totalAmount,
             note: typeof note === "string" ? note.trim() : "",
-            receiptUrl: cleanReceiptUrl,
-            receiptPublicId: cleanReceiptPublicId,
+            receipts: cleanReceipts,
+            receiptUrl: cleanReceipts[0]?.url || null,
+            receiptPublicId: cleanReceipts[0]?.publicId || null,
             createdBy: email,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -312,7 +319,7 @@ module.exports = async function handler(req, res) {
           amount: amountNum,
           quantity: quantityNum,
           totalAmount: finalTotalAmount,
-          hasReceipt: !!cleanReceiptUrl
+          receiptCount: cleanReceipts.length
         });
 
         res.status(200).json({ ok: true, txId: newTxRef.id, totalAmount: finalTotalAmount });
@@ -357,7 +364,7 @@ module.exports = async function handler(req, res) {
 
       if (action === "update-transaction") {
         // --- Update Transaction (Uses Transaction to re-calculate Event totals) ---
-        const { eventId, txId, type, label, amount, quantity, note, receiptUrl, receiptPublicId, removeReceipt } = req.body || {};
+        const { eventId, txId, type, label, amount, quantity, note, receipts, receiptUrl, receiptPublicId, removeReceipt, deletedPublicIds } = req.body || {};
         if (!eventId || !txId) {
           res.status(400).json({ error: "eventId and txId are required" }); return;
         }
@@ -369,7 +376,7 @@ module.exports = async function handler(req, res) {
         const txRef = eventRef.collection("transactions").doc(txId);
 
         let finalTotalAmount = 0;
-        let oldPublicIdToClean = null;
+        const publicIdsToDestroy = Array.isArray(deletedPublicIds) ? [...deletedPublicIds] : [];
 
         await db.runTransaction(async (transaction) => {
           const eventSnap = await transaction.get(eventRef);
@@ -425,19 +432,25 @@ module.exports = async function handler(req, res) {
           if (note !== undefined) txUpdates.note = note.trim();
 
           if (removeReceipt === true) {
+            txUpdates.receipts = [];
             txUpdates.receiptUrl = null;
             txUpdates.receiptPublicId = null;
-            if (txData.receiptPublicId) {
-              oldPublicIdToClean = txData.receiptPublicId;
+            if (txData.receiptPublicId) publicIdsToDestroy.push(txData.receiptPublicId);
+            if (Array.isArray(txData.receipts)) {
+              txData.receipts.forEach((r) => { if (r?.publicId) publicIdsToDestroy.push(r.publicId); });
             }
+          } else if (Array.isArray(receipts)) {
+            const cleanReceipts = receipts
+              .filter((r) => r && typeof r.url === "string" && r.url.startsWith("https://"))
+              .map((r) => ({ url: r.url.trim(), publicId: typeof r.publicId === "string" ? r.publicId.trim() : null }));
+            txUpdates.receipts = cleanReceipts;
+            txUpdates.receiptUrl = cleanReceipts[0]?.url || null;
+            txUpdates.receiptPublicId = cleanReceipts[0]?.publicId || null;
           } else if (typeof receiptUrl === "string" && receiptUrl.startsWith("https://")) {
-            txUpdates.receiptUrl = receiptUrl.trim();
-            if (typeof receiptPublicId === "string" && receiptPublicId.trim().length > 0) {
-              txUpdates.receiptPublicId = receiptPublicId.trim();
-              if (txData.receiptPublicId && txData.receiptPublicId !== receiptPublicId.trim()) {
-                oldPublicIdToClean = txData.receiptPublicId;
-              }
-            }
+            const cleanReceipts = [{ url: receiptUrl.trim(), publicId: typeof receiptPublicId === "string" ? receiptPublicId.trim() : null }];
+            txUpdates.receipts = cleanReceipts;
+            txUpdates.receiptUrl = cleanReceipts[0].url;
+            txUpdates.receiptPublicId = cleanReceipts[0].publicId;
           }
 
           transaction.update(txRef, txUpdates);
@@ -450,9 +463,9 @@ module.exports = async function handler(req, res) {
           });
         });
 
-        if (oldPublicIdToClean) {
+        for (const pId of publicIdsToDestroy) {
           try {
-            await cloudinary.uploader.destroy(oldPublicIdToClean, { resource_type: "image" });
+            await cloudinary.uploader.destroy(pId, { resource_type: "image" });
           } catch (cErr) {
             console.warn("Cloudinary destroy warning:", cErr);
           }
@@ -494,6 +507,11 @@ module.exports = async function handler(req, res) {
           if (tData.receiptPublicId) {
             publicIdsToDestroy.push(tData.receiptPublicId);
           }
+          if (Array.isArray(tData.receipts)) {
+            tData.receipts.forEach((r) => {
+              if (r?.publicId) publicIdsToDestroy.push(r.publicId);
+            });
+          }
           batch.delete(doc.ref);
         });
         batch.delete(eventRef);
@@ -521,7 +539,7 @@ module.exports = async function handler(req, res) {
 
         const eventRef = db.collection("events").doc(eventId);
         const txRef = eventRef.collection("transactions").doc(txId);
-        let receiptPublicIdToDestroy = null;
+        const publicIdsToDestroy = [];
 
         await db.runTransaction(async (transaction) => {
           const eventSnap = await transaction.get(eventRef);
@@ -550,7 +568,12 @@ module.exports = async function handler(req, res) {
           transactionCount = Math.max(0, transactionCount - 1);
 
           if (txData.receiptPublicId) {
-            receiptPublicIdToDestroy = txData.receiptPublicId;
+            publicIdsToDestroy.push(txData.receiptPublicId);
+          }
+          if (Array.isArray(txData.receipts)) {
+            txData.receipts.forEach((r) => {
+              if (r?.publicId) publicIdsToDestroy.push(r.publicId);
+            });
           }
 
           transaction.delete(txRef);
@@ -564,9 +587,9 @@ module.exports = async function handler(req, res) {
           });
         });
 
-        if (receiptPublicIdToDestroy) {
+        for (const pId of publicIdsToDestroy) {
           try {
-            await cloudinary.uploader.destroy(receiptPublicIdToDestroy, { resource_type: "image" });
+            await cloudinary.uploader.destroy(pId, { resource_type: "image" });
           } catch (cErr) {
             console.warn("Cloudinary destroy warning:", cErr);
           }

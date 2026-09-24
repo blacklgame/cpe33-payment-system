@@ -57,34 +57,50 @@ const txQty          = document.getElementById("txQty");
 const txNote         = document.getElementById("txNote");
 const amountPreview  = document.getElementById("amountPreview");
 
-// Receipt upload refs
+/// Receipt upload refs
 const txReceiptFile          = document.getElementById("txReceiptFile");
 const receiptUploadBox       = document.getElementById("receiptUploadBox");
 const receiptDropZone        = document.getElementById("receiptDropZone");
-const receiptPreviewWrapper  = document.getElementById("receiptPreviewWrapper");
-const receiptPreviewImg      = document.getElementById("receiptPreviewImg");
-const receiptFileName        = document.getElementById("receiptFileName");
-const btnPreviewZoom         = document.getElementById("btnPreviewZoom");
-const btnRemoveReceipt       = document.getElementById("btnRemoveReceipt");
+const receiptGalleryPreview  = document.getElementById("receiptGalleryPreview");
+const receiptThumbsGrid      = document.getElementById("receiptThumbsGrid");
+const btnAddMoreReceipts     = document.getElementById("btnAddMoreReceipts");
+const btnClearAllReceipts    = document.getElementById("btnClearAllReceipts");
 
 // Receipt viewer lightbox refs
 const receiptViewerModal     = document.getElementById("receiptViewerModal");
 const receiptViewerTitle     = document.getElementById("receiptViewerTitle");
 const receiptViewerSub       = document.getElementById("receiptViewerSub");
 const receiptViewerClose     = document.getElementById("receiptViewerClose");
+const receiptImgCounter      = document.getElementById("receiptImgCounter");
+const lbRotateLeft           = document.getElementById("lbRotateLeft");
+const lbRotateRight          = document.getElementById("lbRotateRight");
+const lbZoomIn               = document.getElementById("lbZoomIn");
+const lbZoomOut              = document.getElementById("lbZoomOut");
+const lbZoomReset            = document.getElementById("lbZoomReset");
+const lbNavPrev              = document.getElementById("lbNavPrev");
+const lbNavNext              = document.getElementById("lbNavNext");
 const receiptViewerImg       = document.getElementById("receiptViewerImg");
 const receiptViewerOpenTab   = document.getElementById("receiptViewerOpenTab");
 const receiptViewerCloseBtn  = document.getElementById("receiptViewerCloseBtn");
+const lightboxStripContainer = document.getElementById("lightboxStripContainer");
+const lightboxStripThumbs    = document.getElementById("lightboxStripThumbs");
 
 // ── State ─────────────────────────────────────────────────────
-let currentUser            = null;
-let transactions           = [];
-let selectedType           = "income";
-let editingTxId            = null;
-let selectedReceiptFile    = null;
-let currentReceiptUrl      = null;
-let currentReceiptPublicId = null;
-let isReceiptRemoved       = false;
+let currentUser       = null;
+let transactions      = [];
+let selectedType      = "income";
+let editingTxId       = null;
+
+// Multi-receipt state for Add/Edit Modal
+let existingReceipts  = []; // [ { url, publicId } ]
+let selectedNewFiles  = []; // [ { file, previewUrl } ]
+let deletedPublicIds  = [];
+
+// Lightbox state
+let lbImages          = []; // [ { url, title, subtitle } ]
+let lbCurrentIndex    = 0;
+let lbRotation        = 0;
+let lbZoom            = 1;
 
 function goToLogin() {
   clearActivity();
@@ -168,7 +184,6 @@ async function apiFetch(url, opts = {}) {
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
-
 
 function escapeHtml(s) {
   return String(s)
@@ -282,9 +297,14 @@ function renderTransactions() {
     const qtyLabel = tx.quantity > 1 ? ` × ${tx.quantity} ชิ้น` : "";
     const noteHtml = tx.note ? `<span style="opacity:0.65;"> · ${escapeHtml(tx.note)}</span>` : "";
 
-    const receiptBadgeHtml = tx.receiptUrl ? `
-      <button class="receipt-badge-btn" data-view-receipt="${escapeHtml(tx.receiptUrl)}" data-label="${escapeHtml(tx.label)}" data-meta="${dateStr} ${timeStr}${qtyLabel}" title="ดูรูปภาพใบเสร็จ / หลักฐาน">
-        🧾 ดูใบเสร็จ
+    const txReceipts = Array.isArray(tx.receipts) && tx.receipts.length > 0
+      ? tx.receipts
+      : (tx.receiptUrl ? [{ url: tx.receiptUrl }] : []);
+
+    const countLabel = txReceipts.length > 1 ? ` (${txReceipts.length})` : "";
+    const receiptBadgeHtml = txReceipts.length > 0 ? `
+      <button class="receipt-badge-btn" data-view-receipt="${tx.id}" title="ดูรูปภาพใบเสร็จ / หลักฐาน">
+        🧾 ดูใบเสร็จ${countLabel}
       </button>` : "";
 
     card.innerHTML = `
@@ -313,7 +333,12 @@ function renderTransactions() {
     if (receiptBtn) {
       receiptBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        openReceiptLightbox(tx.receiptUrl, tx.label, `${dateStr} ${timeStr}${qtyLabel}`);
+        const imgs = txReceipts.map((r, idx) => ({
+          url: r.url,
+          title: tx.label,
+          subtitle: `${dateStr} ${timeStr}${qtyLabel}${txReceipts.length > 1 ? ` · รูปที่ ${idx + 1}/${txReceipts.length}` : ""}`
+        }));
+        openReceiptLightbox(imgs, 0);
       });
     }
 
@@ -321,58 +346,113 @@ function renderTransactions() {
   });
 }
 
-// ── Receipt File Handling ─────────────────────────────────────
+// ── Multi-Receipt File Handling in Modal ──────────────────────
 function resetReceiptState() {
-  selectedReceiptFile    = null;
-  currentReceiptUrl      = null;
-  currentReceiptPublicId = null;
-  isReceiptRemoved       = false;
-  txReceiptFile.value    = "";
-  receiptPreviewImg.src  = "";
-  receiptFileName.textContent = "";
-  receiptPreviewWrapper.style.display = "none";
-  receiptDropZone.style.display = "flex";
+  existingReceipts = [];
+  selectedNewFiles = [];
+  deletedPublicIds = [];
+  txReceiptFile.value = "";
+  renderReceiptThumbs();
 }
 
-function handleReceiptFile(file) {
-  if (!file) return;
+function renderReceiptThumbs() {
+  receiptThumbsGrid.innerHTML = "";
+  const totalCount = existingReceipts.length + selectedNewFiles.length;
 
-  // Validate format
+  if (totalCount === 0) {
+    receiptGalleryPreview.style.display = "none";
+    receiptDropZone.style.display = "flex";
+    return;
+  }
+
+  receiptDropZone.style.display = "none";
+  receiptGalleryPreview.style.display = "flex";
+
+  // 1. Render existing uploaded receipts
+  existingReceipts.forEach((r, idx) => {
+    const item = document.createElement("div");
+    item.className = "receipt-thumb-item";
+    item.innerHTML = `
+      <img src="${escapeHtml(r.url)}" alt="ใบเสร็จ">
+      <button type="button" class="receipt-thumb-remove" title="ลบรูปนี้">✕</button>
+    `;
+
+    item.querySelector(".receipt-thumb-remove").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (r.publicId) deletedPublicIds.push(r.publicId);
+      existingReceipts.splice(idx, 1);
+      renderReceiptThumbs();
+    });
+
+    item.addEventListener("click", () => {
+      const allImgs = [
+        ...existingReceipts.map((er) => ({ url: er.url, title: txLabel.value.trim() || "ใบเสร็จ", subtitle: "แนบไว้แล้ว" })),
+        ...selectedNewFiles.map((nf) => ({ url: nf.previewUrl, title: txLabel.value.trim() || "ใบเสร็จ", subtitle: "พรีวิวก่อนบันทึก" }))
+      ];
+      openReceiptLightbox(allImgs, idx);
+    });
+
+    receiptThumbsGrid.appendChild(item);
+  });
+
+  // 2. Render newly selected local files
+  selectedNewFiles.forEach((nf, idx) => {
+    const item = document.createElement("div");
+    item.className = "receipt-thumb-item";
+    item.innerHTML = `
+      <img src="${nf.previewUrl}" alt="ใบเสร็จใหม่">
+      <button type="button" class="receipt-thumb-remove" title="ลบรูปนี้">✕</button>
+    `;
+
+    item.querySelector(".receipt-thumb-remove").addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectedNewFiles.splice(idx, 1);
+      renderReceiptThumbs();
+    });
+
+    item.addEventListener("click", () => {
+      const allImgs = [
+        ...existingReceipts.map((er) => ({ url: er.url, title: txLabel.value.trim() || "ใบเสร็จ", subtitle: "แนบไว้แล้ว" })),
+        ...selectedNewFiles.map((f) => ({ url: f.previewUrl, title: txLabel.value.trim() || "ใบเสร็จ", subtitle: "พรีวิวก่อนบันทึก" }))
+      ];
+      openReceiptLightbox(allImgs, existingReceipts.length + idx);
+    });
+
+    receiptThumbsGrid.appendChild(item);
+  });
+}
+
+function handleIncomingFiles(fileList) {
+  if (!fileList || fileList.length === 0) return;
+
   const validTypes = ["image/jpeg", "image/png", "image/webp"];
-  if (!validTypes.includes(file.type)) {
-    txModalStatus.textContent = "กรุณาเลือกไฟล์รูปภาพที่เป็น JPG, PNG หรือ WEBP";
-    return;
+  for (let i = 0; i < fileList.length; i++) {
+    const file = fileList[i];
+    if (!validTypes.includes(file.type)) {
+      txModalStatus.textContent = `ไฟล์ ${file.name} ไม่ใช่รูปภาพ JPG, PNG หรือ WEBP`;
+      continue;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      txModalStatus.textContent = `ไฟล์ ${file.name} ขนาดเกิน 10MB`;
+      continue;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      selectedNewFiles.push({ file, previewUrl: e.target.result });
+      renderReceiptThumbs();
+    };
+    reader.readAsDataURL(file);
   }
-
-  // Validate size (10 MB max)
-  if (file.size > 10 * 1024 * 1024) {
-    txModalStatus.textContent = "ขนาดไฟล์เกิน 10MB กรุณาเลือกรูปภาพที่มีขนาดเล็กกว่านี้";
-    return;
-  }
-
-  txModalStatus.textContent = "";
-  selectedReceiptFile = file;
-  isReceiptRemoved = false;
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    receiptPreviewImg.src = e.target.result;
-    receiptFileName.textContent = file.name;
-    receiptPreviewWrapper.style.display = "flex";
-    receiptDropZone.style.display = "none";
-  };
-  reader.readAsDataURL(file);
 }
 
-// Click to choose file
-receiptDropZone.addEventListener("click", () => {
-  txReceiptFile.click();
-});
+// Click trigger
+receiptDropZone.addEventListener("click", () => txReceiptFile.click());
+btnAddMoreReceipts.addEventListener("click", () => txReceiptFile.click());
 
 txReceiptFile.addEventListener("change", (e) => {
-  if (e.target.files && e.target.files[0]) {
-    handleReceiptFile(e.target.files[0]);
-  }
+  if (e.target.files) handleIncomingFiles(e.target.files);
+  txReceiptFile.value = "";
 });
 
 // Drag and drop
@@ -388,39 +468,17 @@ receiptUploadBox.addEventListener("dragleave", () => {
 receiptUploadBox.addEventListener("drop", (e) => {
   e.preventDefault();
   receiptUploadBox.classList.remove("dragover");
-  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
-    handleReceiptFile(e.dataTransfer.files[0]);
+  if (e.dataTransfer && e.dataTransfer.files) {
+    handleIncomingFiles(e.dataTransfer.files);
   }
 });
 
-// Remove receipt button
-btnRemoveReceipt.addEventListener("click", (e) => {
-  e.stopPropagation();
-  selectedReceiptFile = null;
-  currentReceiptUrl = null;
-  isReceiptRemoved = true;
-  txReceiptFile.value = "";
-  receiptPreviewImg.src = "";
-  receiptPreviewWrapper.style.display = "none";
-  receiptDropZone.style.display = "flex";
-});
-
-// Preview zoom button in modal
-btnPreviewZoom.addEventListener("click", (e) => {
-  e.stopPropagation();
-  const src = receiptPreviewImg.src;
-  if (src) {
-    openReceiptLightbox(src, txLabel.value.trim() || "ตัวอย่างใบเสร็จ", "พรีวิวก่อนบันทึก");
-  }
-});
-
-// Click thumbnail to zoom
-receiptPreviewImg.addEventListener("click", (e) => {
-  e.stopPropagation();
-  const src = receiptPreviewImg.src;
-  if (src) {
-    openReceiptLightbox(src, txLabel.value.trim() || "ตัวอย่างใบเสร็จ", "พรีวิวก่อนบันทึก");
-  }
+// Clear all
+btnClearAllReceipts.addEventListener("click", () => {
+  existingReceipts.forEach((r) => { if (r.publicId) deletedPublicIds.push(r.publicId); });
+  existingReceipts = [];
+  selectedNewFiles = [];
+  renderReceiptThumbs();
 });
 
 // ── Add transaction modal ─────────────────────────────────────
@@ -453,14 +511,12 @@ function openEditTx(txId) {
   txModalStatus.textContent = "";
   resetReceiptState();
 
-  if (tx.receiptUrl) {
-    currentReceiptUrl = tx.receiptUrl;
-    currentReceiptPublicId = tx.receiptPublicId || null;
-    receiptPreviewImg.src = tx.receiptUrl;
-    receiptFileName.textContent = "ใบเสร็จที่แนบไว้";
-    receiptPreviewWrapper.style.display = "flex";
-    receiptDropZone.style.display = "none";
+  if (Array.isArray(tx.receipts) && tx.receipts.length > 0) {
+    existingReceipts = tx.receipts.map((r) => ({ url: r.url, publicId: r.publicId || null }));
+  } else if (tx.receiptUrl) {
+    existingReceipts = [{ url: tx.receiptUrl, publicId: tx.receiptPublicId || null }];
   }
+  renderReceiptThumbs();
 
   setTxType(tx.type || "income");
   updateAmountPreview();
@@ -507,38 +563,43 @@ txModalSave.addEventListener("click", async () => {
   txModalStatus.textContent = "";
 
   try {
-    let finalReceiptUrl = currentReceiptUrl;
-    let finalReceiptPublicId = currentReceiptPublicId;
+    const finalReceipts = [...existingReceipts];
 
-    // If new file chosen, upload to Cloudinary with signed ticket
-    if (selectedReceiptFile) {
-      txModalStatus.textContent = "กำลังอัปโหลดรูปภาพใบเสร็จ...";
-      const signTicket = await apiFetch("/api/admin/events-api", {
-        method: "POST",
-        body: JSON.stringify({ action: "sign-receipt-upload", eventId })
-      });
+    // Upload newly attached files if any
+    if (selectedNewFiles.length > 0) {
+      for (let i = 0; i < selectedNewFiles.length; i++) {
+        const nf = selectedNewFiles[i];
+        txModalStatus.textContent = `กำลังอัปโหลดรูปภาพ (${i + 1}/${selectedNewFiles.length})...`;
 
-      const formData = new FormData();
-      formData.append("file", selectedReceiptFile);
-      formData.append("api_key", signTicket.apiKey);
-      formData.append("timestamp", signTicket.timestamp);
-      formData.append("signature", signTicket.signature);
-      formData.append("public_id", signTicket.publicId);
-      formData.append("overwrite", "false");
+        const signTicket = await apiFetch("/api/admin/events-api", {
+          method: "POST",
+          body: JSON.stringify({ action: "sign-receipt-upload", eventId })
+        });
 
-      const uploadRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${signTicket.cloudName || "egcc6hml"}/image/upload`,
-        { method: "POST", body: formData }
-      );
+        const formData = new FormData();
+        formData.append("file", nf.file);
+        formData.append("api_key", signTicket.apiKey);
+        formData.append("timestamp", signTicket.timestamp);
+        formData.append("signature", signTicket.signature);
+        formData.append("public_id", signTicket.publicId);
+        formData.append("overwrite", "false");
 
-      if (!uploadRes.ok) {
-        const errJson = await uploadRes.json().catch(() => ({}));
-        throw new Error(errJson.error?.message || "Upload to Cloudinary failed");
+        const uploadRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${signTicket.cloudName || "egcc6hml"}/image/upload`,
+          { method: "POST", body: formData }
+        );
+
+        if (!uploadRes.ok) {
+          const errJson = await uploadRes.json().catch(() => ({}));
+          throw new Error(errJson.error?.message || "Upload to Cloudinary failed");
+        }
+
+        const uploadData = await uploadRes.json();
+        finalReceipts.push({
+          url: uploadData.secure_url,
+          publicId: uploadData.public_id
+        });
       }
-
-      const uploadData = await uploadRes.json();
-      finalReceiptUrl = uploadData.secure_url;
-      finalReceiptPublicId = uploadData.public_id;
     }
 
     txModalStatus.textContent = "กำลังบันทึกข้อมูล...";
@@ -555,9 +616,9 @@ txModalSave.addEventListener("click", async () => {
           amount,
           quantity: qty,
           note,
-          receiptUrl: finalReceiptUrl,
-          receiptPublicId: finalReceiptPublicId,
-          removeReceipt: isReceiptRemoved
+          receipts: finalReceipts,
+          deletedPublicIds,
+          removeReceipt: finalReceipts.length === 0
         })
       });
     } else {
@@ -571,8 +632,7 @@ txModalSave.addEventListener("click", async () => {
           amount,
           quantity: qty,
           note,
-          receiptUrl: finalReceiptUrl,
-          receiptPublicId: finalReceiptPublicId
+          receipts: finalReceipts
         })
       });
     }
@@ -606,14 +666,98 @@ async function confirmDeleteTx(txId, label) {
   }
 }
 
-// ── Lightbox / Receipt Viewer ─────────────────────────────────
-function openReceiptLightbox(url, title, subtitle) {
-  receiptViewerTitle.textContent = "🧾 " + (title || "ใบเสร็จ");
-  receiptViewerSub.textContent   = subtitle || "";
-  receiptViewerImg.src           = url;
-  receiptViewerOpenTab.href      = url;
+// ── Lightbox Viewer with Rotate & Zoom & Navigation ───────────
+function openReceiptLightbox(images, startIndex = 0) {
+  if (!images || images.length === 0) return;
+  lbImages = Array.isArray(images) ? images : [{ url: images, title: "ใบเสร็จ", subtitle: "" }];
+  lbCurrentIndex = Math.max(0, Math.min(startIndex, lbImages.length - 1));
+  lbRotation = 0;
+  lbZoom = 1;
+
+  showLightboxImage(lbCurrentIndex);
   openModal(receiptViewerModal);
 }
+
+function updateLightboxTransform() {
+  receiptViewerImg.style.transform = `scale(${lbZoom}) rotate(${lbRotation}deg)`;
+}
+
+function showLightboxImage(index) {
+  if (index < 0 || index >= lbImages.length) return;
+  lbCurrentIndex = index;
+  lbRotation = 0;
+  lbZoom = 1;
+  updateLightboxTransform();
+
+  const imgObj = lbImages[index];
+  receiptViewerImg.src = imgObj.url;
+  receiptViewerTitle.textContent = "🧾 " + (imgObj.title || "ใบเสร็จ");
+  receiptViewerSub.textContent   = imgObj.subtitle || "";
+  receiptViewerOpenTab.href      = imgObj.url;
+  receiptImgCounter.textContent  = `${index + 1} / ${lbImages.length}`;
+
+  // Multi-image controls
+  if (lbImages.length > 1) {
+    lbNavPrev.style.display = "flex";
+    lbNavNext.style.display = "flex";
+    lightboxStripContainer.style.display = "block";
+    renderLightboxStrip();
+  } else {
+    lbNavPrev.style.display = "none";
+    lbNavNext.style.display = "none";
+    lightboxStripContainer.style.display = "none";
+  }
+}
+
+function renderLightboxStrip() {
+  lightboxStripThumbs.innerHTML = "";
+  lbImages.forEach((imgObj, idx) => {
+    const thumb = document.createElement("div");
+    thumb.className = `lb-strip-thumb ${idx === lbCurrentIndex ? "active" : ""}`;
+    thumb.innerHTML = `<img src="${escapeHtml(imgObj.url)}" alt="thumb">`;
+    thumb.addEventListener("click", () => showLightboxImage(idx));
+    lightboxStripThumbs.appendChild(thumb);
+  });
+}
+
+// Rotate & Zoom Controls
+lbRotateLeft.addEventListener("click", () => {
+  lbRotation = (lbRotation - 90) % 360;
+  updateLightboxTransform();
+});
+
+lbRotateRight.addEventListener("click", () => {
+  lbRotation = (lbRotation + 90) % 360;
+  updateLightboxTransform();
+});
+
+lbZoomIn.addEventListener("click", () => {
+  lbZoom = Math.min(3.0, Number((lbZoom + 0.25).toFixed(2)));
+  updateLightboxTransform();
+});
+
+lbZoomOut.addEventListener("click", () => {
+  lbZoom = Math.max(0.5, Number((lbZoom - 0.25).toFixed(2)));
+  updateLightboxTransform();
+});
+
+lbZoomReset.addEventListener("click", () => {
+  lbZoom = 1;
+  lbRotation = 0;
+  updateLightboxTransform();
+});
+
+lbNavPrev.addEventListener("click", () => {
+  if (lbImages.length <= 1) return;
+  const nextIdx = (lbCurrentIndex - 1 + lbImages.length) % lbImages.length;
+  showLightboxImage(nextIdx);
+});
+
+lbNavNext.addEventListener("click", () => {
+  if (lbImages.length <= 1) return;
+  const nextIdx = (lbCurrentIndex + 1) % lbImages.length;
+  showLightboxImage(nextIdx);
+});
 
 receiptViewerClose.addEventListener("click", () => closeModal(receiptViewerModal));
 receiptViewerCloseBtn.addEventListener("click", () => closeModal(receiptViewerModal));
@@ -633,8 +777,56 @@ function closeModal(overlay) {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    if (receiptViewerModal.classList.contains("open")) closeModal(receiptViewerModal);
-    else if (txModal.classList.contains("open")) closeModal(txModal);
+  if (receiptViewerModal && receiptViewerModal.classList.contains("open")) {
+    if (e.key === "Escape") {
+      closeModal(receiptViewerModal);
+    } else if (e.key === "ArrowLeft") {
+      if (lbImages.length > 1) {
+        showLightboxImage((lbCurrentIndex - 1 + lbImages.length) % lbImages.length);
+      }
+    } else if (e.key === "ArrowRight") {
+      if (lbImages.length > 1) {
+        showLightboxImage((lbCurrentIndex + 1) % lbImages.length);
+      }
+    } else if (e.key.toLowerCase() === "r") {
+      lbRotation = (lbRotation + 90) % 360;
+      updateLightboxTransform();
+    } else if (e.key === "+" || e.key === "=") {
+      lbZoom = Math.min(3.0, Number((lbZoom + 0.25).toFixed(2)));
+      updateLightboxTransform();
+    } else if (e.key === "-" || e.key === "_") {
+      lbZoom = Math.max(0.5, Number((lbZoom - 0.25).toFixed(2)));
+      updateLightboxTransform();
+    }
+  } else if (e.key === "Escape" && txModal.classList.contains("open")) {
+    closeModal(txModal);
   }
 });
+
+// Touch swipe gestures for mobile Lightbox
+let lbTouchStartX = 0;
+let lbTouchStartY = 0;
+const lbCanvas = document.querySelector(".receipt-viewer-canvas");
+if (lbCanvas) {
+  lbCanvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      lbTouchStartX = e.touches[0].clientX;
+      lbTouchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  lbCanvas.addEventListener("touchend", (e) => {
+    if (e.changedTouches.length === 1 && lbImages.length > 1) {
+      const diffX = e.changedTouches[0].clientX - lbTouchStartX;
+      const diffY = e.changedTouches[0].clientY - lbTouchStartY;
+      if (Math.abs(diffX) > 45 && Math.abs(diffX) > Math.abs(diffY) * 1.4) {
+        if (diffX < 0) {
+          showLightboxImage((lbCurrentIndex + 1) % lbImages.length);
+        } else {
+          showLightboxImage((lbCurrentIndex - 1 + lbImages.length) % lbImages.length);
+        }
+      }
+    }
+  }, { passive: true });
+}
+

@@ -323,22 +323,22 @@
   pointer-events: all;
 }
 
-.modal {
+.modal-receipt-viewer {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: 20px 22px;
   width: 100%;
-  max-width: 580px;
+  max-width: 640px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.7);
   transform: scale(0.95) translateY(8px);
   transition: transform 0.25s var(--ease);
 }
 
-.modal-overlay.open .modal {
+.modal-overlay.open .modal-receipt-viewer {
   transform: scale(1) translateY(0);
 }
 
@@ -358,6 +358,21 @@
 .modal-title {
   font-size: 1.15rem;
   font-weight: 700;
+}
+
+.receipt-viewer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.receipt-img-counter {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-2);
+  background: rgba(34, 211, 238, 0.12);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
 }
 
 .receipt-viewer-sub {
@@ -382,25 +397,148 @@
   background: var(--surface-2);
 }
 
+/* Lightbox Toolbar (Rotate & Zoom) */
+.lightbox-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+
+.lb-tool-btn {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lb-tool-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.lb-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
 .receipt-viewer-body {
   width: 100%;
-  max-height: 65vh;
+  height: 52vh;
+  min-height: 280px;
+  max-height: 60vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
+  background: #040508;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 12px;
-  overflow: auto;
+  position: relative;
+  overflow: hidden;
+}
+
+.receipt-img-canvas {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .receipt-full-img {
-  max-width: 100%;
-  max-height: 60vh;
+  max-width: 90%;
+  max-height: 90%;
   object-fit: contain;
   border-radius: var(--radius-sm);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.3, 1);
+  transform-origin: center center;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+}
+
+.lb-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(14, 16, 23, 0.85);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.15s;
+  backdrop-filter: blur(4px);
+}
+
+.lb-nav-btn:hover {
+  background: var(--accent);
+  color: #0d0f17;
+  border-color: var(--accent);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.lb-nav-prev { left: 10px; }
+.lb-nav-next { right: 10px; }
+
+/* Lightbox thumbnail strip */
+.lightbox-strip-container {
+  width: 100%;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.lightbox-strip-thumbs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 2px;
+}
+
+.lb-strip-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: all 0.15s;
+}
+
+.lb-strip-thumb.active,
+.lb-strip-thumb:hover {
+  opacity: 1;
+  border-color: var(--accent);
+  transform: scale(1.08);
+}
+
+.lb-strip-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .receipt-viewer-footer {

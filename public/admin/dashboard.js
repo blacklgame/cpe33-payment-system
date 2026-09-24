@@ -39,6 +39,37 @@ const unpaidFilterToggle = document.getElementById("unpaidFilterToggle");
 const monthPickerRow = document.getElementById("monthPickerRow");
 const monthPicker = document.getElementById("monthPicker");
 const monthPickerTotal = document.getElementById("monthPickerTotal");
+const fastReviewBtn = document.getElementById("fastReviewBtn");
+const fastReviewBadge = document.getElementById("fastReviewBadge");
+
+// Fast Review Modal elements
+const fastReviewModal = document.getElementById("fastReviewModal");
+const fastReviewClose = document.getElementById("fastReviewClose");
+const fastReviewProgress = document.getElementById("fastReviewProgress");
+const frRotateLeft = document.getElementById("frRotateLeft");
+const frRotateRight = document.getElementById("frRotateRight");
+const frZoomIn = document.getElementById("frZoomIn");
+const frZoomOut = document.getElementById("frZoomOut");
+const frZoomReset = document.getElementById("frZoomReset");
+const frOpenTab = document.getElementById("frOpenTab");
+const frSlipImg = document.getElementById("frSlipImg");
+const frStudentName = document.getElementById("frStudentName");
+const frStudentMeta = document.getElementById("frStudentMeta");
+const frPaymentMode = document.getElementById("frPaymentMode");
+const frDeclaredAmount = document.getElementById("frDeclaredAmount");
+const frTargetAmount = document.getElementById("frTargetAmount");
+const frVerifiedAmountInput = document.getElementById("frVerifiedAmountInput");
+const frStatusMsg = document.getElementById("frStatusMsg");
+const frApproveBtn = document.getElementById("frApproveBtn");
+const frRejectBtn = document.getElementById("frRejectBtn");
+const frPrevBtn = document.getElementById("frPrevBtn");
+const frNextBtn = document.getElementById("frNextBtn");
+
+let fastReviewQueue = [];
+let fastReviewIndex = 0;
+let fastReviewIsOpen = false;
+let fastReviewRotation = 0;
+let fastReviewZoom = 1;
 
 const PAGE_SIZE = 10;
 
@@ -305,6 +336,7 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
 function applyCurrentMonth() {
   allUsers = mapUsersAndPayments(rawUsers, rawPayments, rawMonthlyPayments, currentMonthId);
   updateMonthTotal();
+  updateFastReviewBtn();
 
   const pageCount = Math.max(1, Math.ceil(allUsers.length / PAGE_SIZE));
   if (currentPage > pageCount) currentPage = pageCount;
@@ -1016,3 +1048,396 @@ async function handleDelete(nuid, slipPublicId, triggerEl) {
     actionInFlight = false;
   }
 }
+
+/* ------------------------------------------------------------
+   Fast Review Mode (โหมดตรวจสลิปด่วน)
+   Permits rapid sequential review of all pending payment slips
+   with keyboard shortcuts, zoom/rotate, and direct verification.
+------------------------------------------------------------ */
+
+function getPendingReviewItems() {
+  return allUsers.filter((u) => u.pendingReview && u.slipUrl && u.slipUrl.startsWith("https://"));
+}
+
+function updateFastReviewBtn() {
+  if (!fastReviewBtn || !fastReviewBadge) return;
+  const pending = getPendingReviewItems();
+  if (pending.length > 0) {
+    fastReviewBtn.style.display = "inline-flex";
+    fastReviewBadge.textContent = pending.length;
+  } else {
+    fastReviewBtn.style.display = "none";
+    fastReviewBadge.textContent = "0";
+    if (fastReviewIsOpen) {
+      closeFastReview();
+    }
+  }
+}
+
+function openFastReview(startIndex = 0) {
+  const pending = getPendingReviewItems();
+  if (pending.length === 0) {
+    alert("ไม่มีสลิปที่รอตรวจสอบในขณะนี้");
+    return;
+  }
+
+  fastReviewQueue = pending;
+  fastReviewIndex = Math.max(0, Math.min(startIndex, fastReviewQueue.length - 1));
+  fastReviewIsOpen = true;
+  fastReviewModal.classList.add("show");
+  document.body.style.overflow = "hidden";
+  renderFastReviewItem();
+}
+
+function closeFastReview() {
+  fastReviewIsOpen = false;
+  if (fastReviewModal) {
+    fastReviewModal.classList.remove("show");
+  }
+  document.body.style.overflow = "";
+}
+
+function updateFastReviewTransform() {
+  if (frSlipImg) {
+    frSlipImg.style.transform = `rotate(${fastReviewRotation}deg) scale(${fastReviewZoom})`;
+  }
+}
+
+function renderFastReviewItem() {
+  if (!fastReviewIsOpen) return;
+  if (fastReviewQueue.length === 0 || fastReviewIndex >= fastReviewQueue.length) {
+    closeFastReview();
+    return;
+  }
+
+  const item = fastReviewQueue[fastReviewIndex];
+  fastReviewRotation = 0;
+  fastReviewZoom = 1;
+  updateFastReviewTransform();
+
+  fastReviewProgress.textContent = `รายการที่ ${fastReviewIndex + 1} จาก ${fastReviewQueue.length}`;
+  frSlipImg.src = item.slipUrl;
+  frOpenTab.href = item.slipUrl;
+
+  frStudentName.textContent = `${item.nuid} - ${item.name}`;
+
+  const curMonthObj = rawMonths.find((m) => m.id === currentMonthId);
+  const monthLabel = currentMonthId === "ALL" ? "รวมทุกเดือน" : (curMonthObj ? (curMonthObj.label || curMonthObj.id) : currentMonthId);
+  frStudentMeta.textContent = `รหัสนิสิต: ${item.nuid} · เดือน: ${monthLabel} · อีเมล: ${item.email || "-"}`;
+
+  const modeLabel = item.paymentMode === "installment" ? "ผ่อนชำระ" : (item.paymentMode === "all" ? "จ่ายเหมาทุกเดือน" : "จ่ายเต็มจำนวน");
+  frPaymentMode.textContent = modeLabel;
+
+  const declaredAmt = item.amountPaid != null ? item.amountPaid : (item.amount || 0);
+  frDeclaredAmount.textContent = `฿ ${Number(declaredAmt).toLocaleString("th-TH", { minimumFractionDigits: 2 })}`;
+
+  const targetAmt = item.targetAmount != null ? item.targetAmount : (item.amount || 0);
+  frTargetAmount.textContent = `฿ ${Number(targetAmt).toLocaleString("th-TH", { minimumFractionDigits: 2 })}`;
+
+  frVerifiedAmountInput.value = declaredAmt > 0 ? declaredAmt : (targetAmt > 0 ? targetAmt : "");
+  frStatusMsg.textContent = "";
+  frStatusMsg.style.color = "var(--text-dim)";
+
+  frPrevBtn.disabled = fastReviewIndex <= 0;
+  frNextBtn.disabled = fastReviewIndex >= fastReviewQueue.length - 1;
+  frApproveBtn.disabled = false;
+  frRejectBtn.disabled = false;
+
+  const isPointerDevice = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  if (isPointerDevice) {
+    setTimeout(() => {
+      if (frVerifiedAmountInput) {
+        frVerifiedAmountInput.focus();
+        frVerifiedAmountInput.select();
+      }
+    }, 50);
+  }
+}
+
+async function approveFastReviewCurrent() {
+  if (actionInFlight || !fastReviewIsOpen) return;
+  const item = fastReviewQueue[fastReviewIndex];
+  if (!item) return;
+
+  const rawVal = frVerifiedAmountInput.value.trim();
+  const verifiedAmount = Number(rawVal);
+  if (!verifiedAmount || verifiedAmount <= 0 || isNaN(verifiedAmount)) {
+    frStatusMsg.textContent = "⚠️ กรุณากรอกจำนวนเงินที่ถูกต้อง (ตัวเลขมากกว่า 0)";
+    frStatusMsg.style.color = "#f87171";
+    frVerifiedAmountInput.focus();
+    return;
+  }
+
+  frApproveBtn.disabled = true;
+  frRejectBtn.disabled = true;
+  frPrevBtn.disabled = true;
+  frNextBtn.disabled = true;
+  frStatusMsg.textContent = "⏳ กำลังบันทึกการอนุมัติ...";
+  frStatusMsg.style.color = "var(--accent-2)";
+  actionInFlight = true;
+
+  try {
+    const res = await authorizedFetch("/api/admin/approve-slip", {
+      nuid: item.nuid,
+      monthId: currentMonthId,
+      verifiedAmount
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || "Approve failed");
+    }
+
+    // Success: remove approved item from queue
+    fastReviewQueue.splice(fastReviewIndex, 1);
+
+    // Refresh background data
+    await loadDashboard();
+
+    if (fastReviewQueue.length === 0) {
+      closeFastReview();
+      alert("🎉 ตรวจและอนุมัติสลิปครบทุกรายการแล้ว!");
+    } else {
+      if (fastReviewIndex >= fastReviewQueue.length) {
+        fastReviewIndex = fastReviewQueue.length - 1;
+      }
+      renderFastReviewItem();
+    }
+  } catch (err) {
+    console.error("Fast Review Approve failed:", err);
+    frStatusMsg.textContent = "❌ อนุมัติไม่สำเร็จ: " + (err.message || "เกิดข้อผิดพลาด");
+    frStatusMsg.style.color = "#f87171";
+    frApproveBtn.disabled = false;
+    frRejectBtn.disabled = false;
+    frPrevBtn.disabled = fastReviewIndex <= 0;
+    frNextBtn.disabled = fastReviewIndex >= fastReviewQueue.length - 1;
+  } finally {
+    actionInFlight = false;
+  }
+}
+
+async function rejectFastReviewCurrent() {
+  if (actionInFlight || !fastReviewIsOpen) return;
+  const item = fastReviewQueue[fastReviewIndex];
+  if (!item) return;
+
+  const confirmed = window.confirm(
+    `ยืนยันปฏิเสธสลิปของรหัสนิสิต ${item.nuid} (${item.name})?\nสลิปจะถูกลบและนิสิตจะสามารถอัปโหลดใหม่ได้`
+  );
+  if (!confirmed) return;
+
+  frApproveBtn.disabled = true;
+  frRejectBtn.disabled = true;
+  frPrevBtn.disabled = true;
+  frNextBtn.disabled = true;
+  frStatusMsg.textContent = "⏳ กำลังปฏิเสธสลิป...";
+  frStatusMsg.style.color = "#f87171";
+  actionInFlight = true;
+
+  try {
+    const res = await authorizedFetch("/api/admin/delete-slip", {
+      nuid: item.nuid,
+      monthId: currentMonthId,
+      slipPublicId: item.slipPublicId,
+      confirm: true
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || "Reject failed");
+    }
+
+    // Success: remove from queue
+    fastReviewQueue.splice(fastReviewIndex, 1);
+
+    // Refresh background data
+    await loadDashboard();
+
+    if (fastReviewQueue.length === 0) {
+      closeFastReview();
+      alert("ตรวจสลิปครบทุกรายการแล้ว");
+    } else {
+      if (fastReviewIndex >= fastReviewQueue.length) {
+        fastReviewIndex = fastReviewQueue.length - 1;
+      }
+      renderFastReviewItem();
+    }
+  } catch (err) {
+    console.error("Fast Review Reject failed:", err);
+    frStatusMsg.textContent = "❌ ปฏิเสธไม่สำเร็จ: " + (err.message || "เกิดข้อผิดพลาด");
+    frStatusMsg.style.color = "#f87171";
+    frApproveBtn.disabled = false;
+    frRejectBtn.disabled = false;
+    frPrevBtn.disabled = fastReviewIndex <= 0;
+    frNextBtn.disabled = fastReviewIndex >= fastReviewQueue.length - 1;
+  } finally {
+    actionInFlight = false;
+  }
+}
+
+// Event Listeners for Fast Review Controls
+if (fastReviewBtn) {
+  fastReviewBtn.addEventListener("click", () => openFastReview(0));
+}
+
+if (fastReviewClose) {
+  fastReviewClose.addEventListener("click", closeFastReview);
+}
+
+if (fastReviewModal) {
+  fastReviewModal.addEventListener("click", (e) => {
+    if (e.target === fastReviewModal) {
+      closeFastReview();
+    }
+  });
+}
+
+if (frRotateLeft) {
+  frRotateLeft.addEventListener("click", () => {
+    fastReviewRotation = (fastReviewRotation - 90) % 360;
+    updateFastReviewTransform();
+  });
+}
+
+if (frRotateRight) {
+  frRotateRight.addEventListener("click", () => {
+    fastReviewRotation = (fastReviewRotation + 90) % 360;
+    updateFastReviewTransform();
+  });
+}
+
+if (frZoomIn) {
+  frZoomIn.addEventListener("click", () => {
+    fastReviewZoom = Math.min(3, +(fastReviewZoom + 0.25).toFixed(2));
+    updateFastReviewTransform();
+  });
+}
+
+if (frZoomOut) {
+  frZoomOut.addEventListener("click", () => {
+    fastReviewZoom = Math.max(0.5, +(fastReviewZoom - 0.25).toFixed(2));
+    updateFastReviewTransform();
+  });
+}
+
+if (frZoomReset) {
+  frZoomReset.addEventListener("click", () => {
+    fastReviewZoom = 1;
+    fastReviewRotation = 0;
+    updateFastReviewTransform();
+  });
+}
+
+if (frPrevBtn) {
+  frPrevBtn.addEventListener("click", () => {
+    if (fastReviewIndex > 0) {
+      fastReviewIndex--;
+      renderFastReviewItem();
+    }
+  });
+}
+
+if (frNextBtn) {
+  frNextBtn.addEventListener("click", () => {
+    if (fastReviewIndex < fastReviewQueue.length - 1) {
+      fastReviewIndex++;
+      renderFastReviewItem();
+    }
+  });
+}
+
+if (frApproveBtn) {
+  frApproveBtn.addEventListener("click", approveFastReviewCurrent);
+}
+
+if (frRejectBtn) {
+  frRejectBtn.addEventListener("click", rejectFastReviewCurrent);
+}
+
+// Global Keyboard Shortcuts for Fast Review Mode
+window.addEventListener("keydown", (e) => {
+  if (!fastReviewIsOpen) return;
+
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeFastReview();
+    return;
+  }
+
+  const isInputFocused = document.activeElement === frVerifiedAmountInput;
+
+  if (e.key === "Enter") {
+    e.preventDefault();
+    approveFastReviewCurrent();
+    return;
+  }
+
+  if (e.key === "Delete" && !isInputFocused) {
+    e.preventDefault();
+    rejectFastReviewCurrent();
+    return;
+  }
+
+  if (e.key === "ArrowLeft" && !isInputFocused) {
+    e.preventDefault();
+    if (fastReviewIndex > 0) {
+      fastReviewIndex--;
+      renderFastReviewItem();
+    }
+    return;
+  }
+
+  if (e.key === "ArrowRight" && !isInputFocused) {
+    e.preventDefault();
+    if (fastReviewIndex < fastReviewQueue.length - 1) {
+      fastReviewIndex++;
+      renderFastReviewItem();
+    }
+    return;
+  }
+
+  if ((e.key === "r" || e.key === "R") && !isInputFocused) {
+    e.preventDefault();
+    fastReviewRotation = (fastReviewRotation + 90) % 360;
+    updateFastReviewTransform();
+    return;
+  }
+});
+
+// Touch swipe gestures for mobile navigation
+let frTouchStartX = 0;
+let frTouchStartY = 0;
+const frCanvas = document.querySelector(".fast-review-canvas");
+if (frCanvas) {
+  frCanvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      frTouchStartX = e.touches[0].clientX;
+      frTouchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  frCanvas.addEventListener("touchend", (e) => {
+    if (e.changedTouches.length === 1) {
+      const diffX = e.changedTouches[0].clientX - frTouchStartX;
+      const diffY = e.changedTouches[0].clientY - frTouchStartY;
+      // Horizontal swipe detected (threshold 45px, predominantly horizontal)
+      if (Math.abs(diffX) > 45 && Math.abs(diffX) > Math.abs(diffY) * 1.4) {
+        if (diffX < 0) {
+          // Swipe Left -> Next item
+          if (fastReviewIndex < fastReviewQueue.length - 1) {
+            fastReviewIndex++;
+            renderFastReviewItem();
+          }
+        } else {
+          // Swipe Right -> Previous item
+          if (fastReviewIndex > 0) {
+            fastReviewIndex--;
+            renderFastReviewItem();
+          }
+        }
+      }
+    }
+  }, { passive: true });
+}
+
+
