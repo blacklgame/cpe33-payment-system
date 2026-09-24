@@ -106,47 +106,54 @@
 
         <!-- Right panel: Student details and approval form -->
         <div class="fast-review-info-panel">
-          <div class="fr-student-card">
-            <div class="fr-student-name" id="frStudentName">ชื่อนิสิต</div>
-            <div class="fr-student-meta" id="frStudentMeta">รหัสนิสิต: 65XXXXXX · เดือน: ม.ค. 2026</div>
-            <div class="fr-mode-tag" id="frPaymentMode">ชำระเต็มจำนวน</div>
+          <div class="fr-shortcuts-hint">
+            ⌨️ <b>คีย์ลัด:</b> <kbd>Enter</kbd> อนุมัติ · <kbd>Del</kbd> ปฏิเสธ · <kbd>←</kbd>/<kbd>→</kbd> สลับ · <kbd>R</kbd> หมุน · <kbd>Esc</kbd> ปิด
           </div>
 
+          <!-- Student Card -->
+          <div class="fr-student-card">
+            <div class="fr-student-header">
+              <div class="fr-student-name" id="frStudentName">ชื่อนิสิต</div>
+              <div class="fr-mode-tag" id="frPaymentMode">ชำระเต็มจำนวน</div>
+            </div>
+            <div class="fr-student-meta" id="frStudentMeta">รหัสนิสิต: 65XXXXXX · เดือน: ม.ค. 2026</div>
+          </div>
+
+          <!-- Verification & Action Box at top -->
+          <div class="fr-action-card">
+            <label class="field-label" style="margin-top:0;">
+              <span>ยอดเงินตรวจสอบจากสลิปจริง (บาท)</span>
+              <input type="number" id="frVerifiedAmountInput" class="input-field fr-verified-input" step="0.01" min="1" placeholder="0.00">
+            </label>
+
+            <div class="fr-status-msg" id="frStatusMsg"></div>
+
+            <div class="fr-actions-row">
+              <button type="button" class="btn-fr-approve" id="frApproveBtn">
+                ✅ อนุมัติ (Enter)
+              </button>
+              <button type="button" class="btn-fr-reject" id="frRejectBtn">
+                ❌ ปฏิเสธ (Del)
+              </button>
+            </div>
+
+            <div class="fr-nav-row">
+              <button type="button" class="btn-fr-nav" id="frPrevBtn">‹ ก่อนหน้า (←)</button>
+              <button type="button" class="btn-fr-nav" id="frNextBtn">ข้ามไปก่อน (→) ›</button>
+            </div>
+          </div>
+
+          <!-- Amount info summary -->
           <div class="fr-amount-group">
             <div class="fr-amount-row">
               <span class="fr-amount-label">ยอดที่นิสิตแจ้ง:</span>
-              <span class="fr-amount-value" id="frDeclaredAmount">฿ 200.00</span>
+              <span class="fr-amount-value" id="frDeclaredAmount">฿ 0.00</span>
             </div>
             <div class="fr-amount-row">
               <span class="fr-amount-label">ยอดเป้าหมายของเดือน:</span>
-              <span class="fr-amount-value" id="frTargetAmount">฿ 200.00</span>
+              <span class="fr-amount-value" id="frTargetAmount">฿ 0.00</span>
             </div>
-
-            <label class="field-label" style="margin-top:10px;">
-              <span>ยอดเงินตรวจสอบจากสลิปจริง (บาท)</span>
-              <input type="number" id="frVerifiedAmountInput" class="input-field" step="0.01" min="1" placeholder="200.00">
-            </label>
           </div>
-
-          <div class="fr-status-msg" id="frStatusMsg"></div>
-
-          <div class="fr-actions-row">
-            <button type="button" class="btn-fr-approve" id="frApproveBtn">
-              ✅ อนุมัติ (Enter)
-            </button>
-            <button type="button" class="btn-fr-reject" id="frRejectBtn">
-              ❌ ปฏิเสธ (Del)
-            </button>
-          </div>
-
-          <div class="fr-nav-row">
-            <button type="button" class="btn-fr-nav" id="frPrevBtn">‹ ก่อนหน้า (←)</button>
-            <button type="button" class="btn-fr-nav" id="frNextBtn">ข้ามไปก่อน (→) ›</button>
-          </div>
-
-          <p class="fr-shortcuts-hint">
-            ⌨️ <b>คีย์ลัด:</b> <kbd>Enter</kbd> อนุมัติ · <kbd>Del</kbd> ปฏิเสธ · <kbd>←</kbd>/<kbd>→</kbd> สลับรายการ · <kbd>R</kbd> หมุนรูป · <kbd>Esc</kbd> ปิด
-          </p>
         </div>
       </div>
     </div>

@@ -290,6 +290,18 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
       paymentMode = monthly?.paymentMode || null;
     }
 
+    let slipMonthId = null;
+    if (monthId === "ALL") {
+      for (const [mId, mSnap] of Object.entries(studentMonthlyMap)) {
+        if (mSnap && mSnap.reviewStatus === "pending") {
+          slipMonthId = mId;
+          break;
+        }
+      }
+    } else {
+      slipMonthId = monthId;
+    }
+
     const override = statusByNuid[nuid] && statusByNuid[nuid].studentStatus;
     if (override === "termination") {
       paid = false;
@@ -323,6 +335,7 @@ function mapUsersAndPayments(users, payments, monthlyPayments, monthId) {
       displayStatus,
       slipUrl,
       slipPublicId,
+      slipMonthId: slipMonthId || currentMonthId,
       amount,
       targetAmount,
       paidAmount,
@@ -1095,6 +1108,7 @@ function closeFastReview() {
     fastReviewModal.classList.remove("show");
   }
   document.body.style.overflow = "";
+  refreshDashboardSilently().catch(() => {});
 }
 
 function updateFastReviewTransform() {
@@ -1177,9 +1191,10 @@ async function approveFastReviewCurrent() {
   actionInFlight = true;
 
   try {
+    const targetMonthId = item.slipMonthId || currentMonthId;
     const res = await authorizedFetch("/api/admin/approve-slip", {
       nuid: item.nuid,
-      monthId: currentMonthId,
+      monthId: targetMonthId,
       verifiedAmount
     });
 
@@ -1191,15 +1206,15 @@ async function approveFastReviewCurrent() {
     // Success: remove approved item from queue
     fastReviewQueue.splice(fastReviewIndex, 1);
 
-    // Refresh background data
-    await loadDashboard();
+    // Refresh background data quietly without blanking out UI
+    refreshDashboardSilently().catch(() => {});
 
     if (fastReviewQueue.length === 0) {
       closeFastReview();
       alert("🎉 ตรวจและอนุมัติสลิปครบทุกรายการแล้ว!");
     } else {
       if (fastReviewIndex >= fastReviewQueue.length) {
-        fastReviewIndex = fastReviewQueue.length - 1;
+        fastReviewIndex = 0;
       }
       renderFastReviewItem();
     }
@@ -1235,9 +1250,10 @@ async function rejectFastReviewCurrent() {
   actionInFlight = true;
 
   try {
+    const targetMonthId = item.slipMonthId || currentMonthId;
     const res = await authorizedFetch("/api/admin/delete-slip", {
       nuid: item.nuid,
-      monthId: currentMonthId,
+      monthId: targetMonthId,
       slipPublicId: item.slipPublicId,
       confirm: true
     });
@@ -1250,15 +1266,15 @@ async function rejectFastReviewCurrent() {
     // Success: remove from queue
     fastReviewQueue.splice(fastReviewIndex, 1);
 
-    // Refresh background data
-    await loadDashboard();
+    // Refresh background data quietly without blanking out UI
+    refreshDashboardSilently().catch(() => {});
 
     if (fastReviewQueue.length === 0) {
       closeFastReview();
       alert("ตรวจสลิปครบทุกรายการแล้ว");
     } else {
       if (fastReviewIndex >= fastReviewQueue.length) {
-        fastReviewIndex = fastReviewQueue.length - 1;
+        fastReviewIndex = 0;
       }
       renderFastReviewItem();
     }

@@ -693,65 +693,85 @@ h1 {
   padding-right: 4px;
 }
 
+.fr-shortcuts-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  text-align: center;
+}
+
+.fr-shortcuts-hint kbd {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: #fff;
+}
+
 .fr-student-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
+.fr-student-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .fr-student-name {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text);
 }
 
 .fr-student-meta {
-  font-size: 0.85rem;
+  font-size: 0.83rem;
   color: var(--text-dim);
 }
 
 .fr-mode-tag {
   display: inline-block;
-  align-self: flex-start;
-  margin-top: 4px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  padding: 3px 10px;
+  padding: 2px 8px;
   border-radius: 9999px;
   background: rgba(59, 130, 246, 0.15);
   color: #60a5fa;
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
-.fr-amount-group {
+.fr-action-card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(245, 158, 11, 0.3);
   border-radius: var(--radius-md);
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
-.fr-amount-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.92rem;
-}
-
-.fr-amount-label {
-  color: var(--text-dim);
-}
-
-.fr-amount-value {
+.fr-verified-input {
+  font-size: 1.15rem;
   font-weight: 700;
   color: #fef08a;
-  font-size: 1rem;
+  padding: 10px 14px;
+  letter-spacing: 0.5px;
 }
 
 .fr-status-msg {
@@ -838,25 +858,31 @@ h1 {
   color: var(--text);
 }
 
-.fr-shortcuts-hint {
-  font-size: 0.78rem;
-  color: var(--text-faint);
-  line-height: 1.5;
-  margin: 0;
-  padding: 8px 10px;
+.fr-amount-group {
   background: rgba(255, 255, 255, 0.03);
-  border-radius: var(--radius-sm);
-  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.fr-shortcuts-hint kbd {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 0.75rem;
-  font-family: inherit;
-  color: #fff;
+.fr-amount-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+}
+
+.fr-amount-label {
+  color: var(--text-dim);
+}
+
+.fr-amount-value {
+  font-weight: 700;
+  color: #fef08a;
+  font-size: 0.95rem;
 }
 
 /* ---------------------------------------------------------------

@@ -83,9 +83,11 @@ module.exports = async function handler(request, response) {
     let publicIdToDelete = slipPublicId || null;
 
     await db.runTransaction(async (transaction) => {
+      // 1. ALL READS FIRST
       const userMonthsSnap = await transaction.get(monthsSubcollRef);
-      const userMonthsMap = {};
+      const monthsSnap = await transaction.get(db.collection("months"));
 
+      const userMonthsMap = {};
       let targetDocRef = null;
       let targetDocId = null;
       let slipData = null;
@@ -131,14 +133,7 @@ module.exports = async function handler(request, response) {
         ? slipData.amountPaid
         : 0;
 
-      if (publicIdToDelete) {
-        try {
-          await cloudinary.uploader.destroy(publicIdToDelete, { resource_type: "image" });
-        } catch (cErr) {
-          console.warn("Cloudinary destroy warning:", cErr);
-        }
-      }
-
+      // 2. ALL WRITES AFTER READS
       if (allocations && Object.keys(allocations).length > 0) {
         // Precise allocation reversal: deduct exactly what this specific slip contributed to each month!
         Object.entries(allocations).forEach(([mId, allocatedAmount]) => {
@@ -175,7 +170,6 @@ module.exports = async function handler(request, response) {
         });
       } else if (amountToDeduct > 0) {
         // Fallback for legacy slips: deduct backwards
-        const monthsSnap = await transaction.get(db.collection("months"));
         const allMonthsDescending = monthsSnap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
           .sort((a, b) => b.id.localeCompare(a.id));
@@ -237,6 +231,14 @@ module.exports = async function handler(request, response) {
 
       transaction.set(targetDocRef, targetUpdate, { merge: true });
     });
+
+    if (publicIdToDelete) {
+      try {
+        await cloudinary.uploader.destroy(publicIdToDelete, { resource_type: "image" });
+      } catch (cErr) {
+        console.warn("Cloudinary destroy warning:", cErr);
+      }
+    }
 
     await writeAuditLog(db, "delete_slip", email, { nuid, monthId, publicId: publicIdToDelete || null });
 
