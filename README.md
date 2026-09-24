@@ -1,4 +1,4 @@
-# 💸 CPE33 Payment System
+# 💸 CPE33 Payment & Treasury System
 
 ![Vercel](https://img.shields.io/badge/hosted%20on-Vercel-black?logo=vercel)
 ![Firebase](https://img.shields.io/badge/backend-Firebase-FFCA28?logo=firebase&logoColor=black)
@@ -6,72 +6,109 @@
 ![Node](https://img.shields.io/badge/runtime-Node.js-339933?logo=node.js&logoColor=white)
 ![Vercel Limits](https://img.shields.io/badge/Vercel%20Functions-11%2F12-brightgreen)
 
-A modern, high-security **Payment Tracking & Dues Ledger System** for **CPE33** students at Naresuan University.
+A modern, high-security **Class Dues (ค่าสาขา) Ledger & Event Treasury System** built for **CPE33** computer engineering students at Naresuan University.
 
-Students can pay their monthly dues or activity fees using 3 flexible payment options (Full, Installment, or Pay All), while admins manage approvals with an **Auto-Cascading Ledger Engine**, multi-month review views, quick status filter buttons, and a complete event treasury with immutable server-side audit logging.
+The system allows students to manage monthly dues with flexible payment modes (Full, Installment, Multi-Month Payoff), and provides admins with a **Fast-Approval Slip Review Engine**, multi-receipt event treasury tracking, interactive lightbox tools (zoom & 90° rotation), and immutable server-side audit logging.
 
-Built for maximum efficiency on **Vercel** (strictly 11 Serverless Functions under the 12-function Hobby limit), **Firebase** (Auth + Firestore), and **Cloudinary** (Signed Slip Storage).
+Built for maximum efficiency on **Vercel** (strictly 11 Serverless Functions under the 12-function Hobby limit), **Firebase** (Auth + Firestore), and **Cloudinary** (Signed Image Storage).
 
 ---
 
 ## ✨ Key Features
 
-### 💳 1. Three Student Payment Options
-When paying monthly dues or fees, students select from 3 payment options:
-- 🔵 **Option 1: จ่ายเต็มเดือนนี้ (Pay Full for This Month)** — Pay the full remaining amount for 1 month.
+### 💳 1. Monthly Dues & Flexible Student Payments ("ค่าสาขา")
+- 🔵 **Option 1: จ่ายเต็มเดือนนี้ (Pay Full for This Month)** — Pay the exact dues for the selected month.
 - 🟠 **Option 2: ผ่อนจ่ายเดือนนี้ (Installment for This Month)** — Enter a custom partial payment amount (e.g. 30.00 THB out of 60.00 THB) with dynamic remaining balance calculation.
-- 🟣 **Option 3: จ่ายเหมาทุกเดือน (Pay All Unpaid Months at Once)** — Automatically sums all unpaid/remaining balances across all months (e.g. 60 + 60 + 30 = 150.00 THB) for single-slip debt payoff.
+- 🟣 **Option 3: จ่ายเหมาทุกเดือน (Pay All Unpaid Months at Once)** — Automatically sums all unpaid/remaining balances across all open months (e.g. 60 + 60 + 30 = 150.00 THB) for single-slip debt payoff.
+- 📊 **Auto-Cascading Ledger**: When an admin approves a slip, backend transactions sequentially allocate funds to close out the **oldest unpaid balances first**.
 
-### 📊 2. Outstanding Balance Ledger System ("ผ่อนจ่าย")
-- **Per-Month Ledger**: Tracks `targetAmount`, `paidAmount`, and `remainingBalance` per month for every student.
-- **Auto-Cascading Approval**: When an admin approves a slip, backend transactions sequentially allocate funds to close out the **oldest unpaid balances first**.
-- **Single-Slip Multi-Month Payoff**: Upload 1 slip to pay for multi-month or installment balances.
-- **Clear Partial Status Badges**: Displays clear `ผ่อนจ่าย (30/60 บาท)` status pills on student and admin views.
+### ⚡ 2. Fast-Approval Mode for Admins (⚡ โหมดตรวจสลิปด่วน)
+- **Sequential Review Modal**: Rapidly review pending student payment slips one-by-one without page reloads.
+- **Top Action Area**: Verified amount input, Approve (`Enter`), Reject (`Del`), and Next/Previous navigation (`←`/`→`) placed prominently at the top of the review card.
+- **Desktop & Mobile Optimized**:
+  - **Keyboard Shortcuts**: <kbd>Enter</kbd> to Approve, <kbd>Del</kbd> to Reject, <kbd>←</kbd> / <kbd>→</kbd> to navigate, <kbd>R</kbd> to rotate slip, and <kbd>Esc</kbd> to close.
+  - **Mobile Touch Gestures**: Swipe left/right on the slip canvas to flip between pending slips.
+- **Real-Time Queue Management**: Approving or rejecting instantly removes the item from the queue and advances to the next student with quiet background database synchronization.
 
-### 🛡️ 3. Admin Dashboard & Quick Status Filters
-- **"จ่ายทุกเดือน (รวมทุกเดือน)" View**: View overall student balances across all months with a single dropdown selection.
-- **Quick Status Filter Buttons**: Filter students instantly with live count badges:
-  - **ทั้งหมด (All)** — Full roster list
-  - **รอตรวจสอบ (Pending)** — Slips awaiting approval
-  - **จ่ายแล้ว (Paid)** — Students fully paid
-  - **ยังไม่จ่าย (Unpaid)** — Students with open debt
-- **Universal Slip Actions**: View slip URLs, Approve, Reject, or Delete slips from any month view or the "จ่ายทุกเดือน" view.
-- **Full Slip Deletion / Reset**: Deleting/rejecting a slip safely rolls back all allocated funds across months.
+### 🧾 3. Multi-Photo Receipts for Event Treasury
+- **Income & Expense Receipt Attachments**: Admins can attach multiple receipts per transaction (e.g., store tax receipt + bank transfer slip).
+- **Drag & Drop Upload Zone**: Client-side preview grid with instant image removal (`✕`) and file validation (JPG/PNG/WEBP up to 10MB).
+- **Cloudinary Lifecycle Management**: Deleted/updated receipts are automatically purged from Cloudinary storage to prevent orphaned files.
+- **100% Backward Compatible**: Seamlessly supports legacy transactions with single `receiptUrl` attributes.
 
-### 💰 4. Event Treasury & Audit Trail
-- Track club activity income/expenses with atomic running balance calculations in Firestore.
-- Every admin action is immutably recorded to `/auditLog`.
+### 🔍 4. Interactive Lightbox Viewer (Zoom & Rotate)
+- **Badged Transactions**: Items with attached receipts display interactive `🧾 ใบเสร็จ (X)` badges.
+- **Full Control Toolbar**:
+  - **Rotation**: ↺ Rotate Left (90°) & ↻ Rotate Right (90°) for sideways receipt photos.
+  - **Zoom**: ➕ Zoom In, ➖ Zoom Out, `100%` Reset.
+  - **Gallery Strip**: Interactive thumbnail carousel at the bottom for instant photo switching.
+  - **Full-Screen Link**: Direct link to inspect original high-resolution images in a new tab.
+  - **Mobile Swipe & Shortcuts**: Swipe left/right to navigate images, or use <kbd>←</kbd>/<kbd>→</kbd>, <kbd>R</kbd>, <kbd>+</kbd>/<kbd>-</kbd>, and <kbd>Esc</kbd>.
 
-### ⚡ 5. Vercel Hobby Limit Compliance
-- Strictly maintained at **11 Serverless Functions** (0 new function files added to stay safely below Vercel's 12-function limit).
+### 🛡️ 5. Admin Dashboard & Ledger Filters
+- **"จ่ายทุกเดือน (รวมทุกเดือน)" View**: View all student ledger summaries across all months at once.
+- **Live Filter Buttons**: Instant client-side filtering by **All (ทั้งหมด)**, **Pending (รอตรวจสอบ)**, **Paid (จ่ายแล้ว)**, **Installment (ผ่อนจ่าย)**, and **Unpaid (ยังไม่จ่าย)**.
+- **Audited Status Overrides**: Manual status adjustments and note changes immutably logged to Firestore `/auditLog`.
+
+### ⚡ 6. Vercel Serverless Architecture
+- Strictly optimized to **11 Serverless Functions** (safely below Vercel's 12-function Hobby tier threshold).
+
+---
+
+## ⌨️ Keyboard & Gesture Shortcuts Guide
+
+### ⚡ Fast-Approval Mode (`/admin/dashboard.html`)
+| Input | Action |
+|---|---|
+| <kbd>Enter</kbd> | **Approve** current slip (using the amount in the verified amount input) |
+| <kbd>Del</kbd> | **Reject** current slip (prompts confirmation, deletes slip, and notifies student) |
+| <kbd>←</kbd> / <kbd>→</kbd> | **Navigate** to previous / next pending slip |
+| <kbd>R</kbd> | **Rotate** slip 90° clockwise |
+| <kbd>Esc</kbd> | **Close** Fast Review mode |
+| **Swipe Left / Right** | *(Mobile)* Flip between pending slips |
+
+### 🖼️ Receipt Lightbox Viewer (`/admin/event-detail.html` & `/logined/events.html`)
+| Input | Action |
+|---|---|
+| <kbd>←</kbd> / <kbd>→</kbd> | **Previous / Next** receipt photo |
+| <kbd>R</kbd> | **Rotate** 90° clockwise |
+| <kbd>+</kbd> / <kbd>-</kbd> | **Zoom in / out** (50% – 300%) |
+| <kbd>Esc</kbd> | **Close** Lightbox viewer |
+| **Swipe Left / Right** | *(Mobile)* Cycle between receipt photos |
 
 ---
 
 ## 🙋 User Workflows
 
 ### 🎓 Student Workflow
-
-| Step | Action | Description |
-|---|---|---|
-| 1️⃣ | **Google OAuth Sign In** | Authenticate at `/` using your official `@nu.ac.th` Google account. |
-| 2️⃣ | **Roster Verification** | The system matches your email against the Firestore roster and mints a secure student session. |
-| 3️⃣ | **Choose Payment Option** | Select **Pay Full**, **Installment** (custom amount), or **Pay All Unpaid Months**. |
-| 4️⃣ | **Upload Payment Slip** | Upload a photo of your bank transfer slip (signed upload to Cloudinary). |
-| 5️⃣ | **Track Dues & Ledger** | Check `/stats` to view overall status, installment badges (`ผ่อนจ่าย 30/60 บาท`), and remaining balance. |
+```
+[Google Sign In (@nu.ac.th)] ──▶ [Roster Verification] ──▶ [Choose Payment Option]
+                                                                  │
+                                 ┌────────────────────────────────┴────────────────────────────────┐
+                                 ▼                                 ▼                               ▼
+                          [Option 1: Full]              [Option 2: Installment]          [Option 3: Pay All]
+                                 │                                 │                               │
+                                 └─────────────────────────────────┬───────────────────────────────┘
+                                                                   ▼
+                                                       [Signed Cloudinary Upload]
+                                                                   ▼
+                                                       [Submit Pending Slip]
+                                                                   ▼
+                                                       [Track Status on /stats]
+```
 
 ### 🛡️ Admin Workflow
-
-| Step | Action | Description |
-|---|---|---|
-| 1️⃣ | **Admin Authentication** | Access `/admin/login.html` and sign in with an approved admin email. |
-| 2️⃣ | **Create Dues Periods** | Create billing months (Year, Month, Target Amount) on the **Months** page. |
-| 3️⃣ | **Review Slips & Allocate** | Filter pending slips, review uploads, and click **Approve** (funds auto-cascade to oldest unpaid months first). |
-| 4️⃣ | **Manage & Filter Roster** | Filter by **Paid**, **Unpaid**, or **Pending**, or select **"จ่ายทุกเดือน"** for multi-month tracking. |
-| 5️⃣ | **Event Treasury** | Log income/expense items for CPE33 activities with real-time balance calculations. |
+```
+[Admin Authentication] ──▶ [Dues Month Management] ──▶ [⚡ Fast Review Mode (Enter/Del/Swipe)]
+                                                                │
+                                                                ├─▶ [Auto-Cascading Ledger Allocation]
+                                                                │
+                                                                └─▶ [Event Treasury (Multi-Receipts)]
+```
 
 ---
 
-## 🧠 System Architecture & Data Flow
+## 🧠 System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -96,7 +133,7 @@ When paying monthly dues or fees, students select from 3 payment options:
                  ▼                                ▼
 ┌─────────────────────────────────┐  ┌────────────────────────────┐
 │      Firebase Admin SDK         │  │     Cloudinary API         │
-│  (Firestore + Custom Token Auth)│  │   (Signed Slip Uploads)    │
+│  (Firestore + Custom Token Auth)│  │ (Signed Slips & Receipts)  │
 └─────────────────────────────────┘  └────────────────────────────┘
 ```
 
@@ -112,13 +149,13 @@ All endpoints reside in `/api` and strictly comply with Vercel serverless bounds
 | `/api/sign-upload` | `POST` | Student | Issues signed Cloudinary upload ticket for `slips/{nuid}/{monthId}/...` |
 | `/api/submit-slip` | `POST` | Student | Submits pending slip with `paymentMode` (`full`, `installment`, `all`) & `amountPaid` |
 | `/api/admin/approve-slip` | `POST` | Admin | Approves slip and executes **Auto-Cascading Fund Allocation** across months |
-| `/api/admin/delete-slip` | `POST` | Admin | Deletes Cloudinary slip and resets student's ledger balances across months |
+| `/api/admin/delete-slip` | `POST` | Admin | Deletes Cloudinary slip and resets student ledger balances across months |
 | `/api/admin/list-data` | `POST` | Admin | Fetches roster, billing months, per-student monthly ledgers, and audit logs |
 | `/api/admin/set-status` | `POST` | Admin | Overrides student status (`normal`, `unpaid`, `termination`) |
 | `/api/admin/create-month` | `POST` | Admin | Creates or updates a billing month definition |
 | `/api/admin/check-admin` | `POST` | Admin | Verifies if authenticated email is in approved admin list |
-| `/api/admin/events-api` | `POST` | Admin | Manages events and income/expense treasury transactions |
-| `/api/events/list` | `GET` | Public | Returns public event treasury summaries |
+| `/api/admin/events-api` | `POST` | Admin | Manages events, transactions, signed upload tickets, and receipt attachments |
+| `/api/events/list` | `GET` | Public | Returns public event treasury summaries with attached receipts |
 
 ---
 
@@ -129,10 +166,10 @@ All endpoints reside in `/api` and strictly comply with Vercel serverless bounds
 | **Student Impersonation** | Google OAuth (`@nu.ac.th`) strictly enforced; Firebase Auth custom token binds `auth.uid == nuid`. |
 | **Direct Firestore Exploits** | `firestore.rules` blocks **all** client-side writes to `payments/*`, `users/*`, `admins/*`, `events/*`. |
 | **Fake Slip Uploads** | `submit-slip.js` validates asset existence directly via Cloudinary Admin API server-side. |
-| **Unsigned Asset Overwrites** | `sign-upload.js` signs `overwrite:false` and restricts `public_id` path strictly to `slips/{nuid}/...`. |
-| **Admin Route Bypass** | Every `/api/admin/*` function independently verifies Firebase ID Token + Admin Whitelist server-side. |
+| **Unsigned Asset Overwrites** | `sign-upload.js` and `events-api.js` sign `overwrite:false` and scope paths strictly. |
+| **Admin Route Bypass** | Every `/api/admin/*` endpoint independently verifies Firebase ID Token + Admin Whitelist server-side. |
 | **XSS Prevention** | User inputs and filenames sanitized (`replace(/[<>"'&]/g, "")`) before Firestore persistence. |
-| **Paper Trail Loss** | Immutable audit log written to `/auditLog` for all administrative actions. |
+| **Audit Loss** | Immutable audit log written to `/auditLog` for all administrative actions. |
 
 ---
 
