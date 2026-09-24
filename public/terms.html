@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ข้อกำหนดการใช้งานและนโยบายความเป็นส่วนตัว - CPE33 Payment System</title>
+  <!-- Google Fonts: Inter & Noto Sans Thai -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="terms.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header>
+    <div class="brand">
+      <span class="badge">CPE</span>
+      <span class="version">33</span>
+    </div>
+    <nav class="nav-links">
+      <a href="index.html" class="nav-link">หน้าหลัก</a>
+      <a href="logined/stats.html" class="nav-link">สถานะการชำระ</a>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main class="terms-main">
+    <div class="terms-card">
+      <div class="terms-header">
+        <span class="eyebrow">CPE33 Payment & Treasury System</span>
+        <h1>ข้อกำหนดการใช้งานและนโยบายความเป็นส่วนตัว</h1>
+        <div class="terms-updated">ปรับปรุงล่าสุด: กันยายน 2026 (Last Updated: September 2026)</div>
+      </div>
+
+      <!-- Section 1 -->
+      <section class="terms-section">
+        <div class="terms-section-title">
+          <span class="section-icon">🎯</span>
+          <span>1. วัตถุประสงค์และการให้บริการ (Purpose & Scope)</span>
+        </div>
+        <p>
+          ระบบ <strong>CPE33 Payment & Treasury System</strong> พัฒนาขึ้นเพื่อใช้เป็นระบบบันทึกบัญชีกองกลาง การติดตามยอดค้างชำระค่าสาขา (Class Dues) และการจัดทำบัญชีรายรับ-รายจ่ายของกิจกรรมนิสิตวิศวกรรมคอมพิวเตอร์ รุ่นที่ 33 ภาควิชาวิศวกรรมไฟฟ้าและคอมพิวเตอร์ คณะวิศวกรรมศาสตร์ มหาวิทยาลัยนเรศวร
+        </p>
+      </section>
+
+      <!-- Section 2 -->
+      <section class="terms-section">
+        <div class="terms-section-title">
+          <span class="section-icon">🔒</span>
+          <span>2. ข้อมูลส่วนบุคคลที่เก็บรวบรวม (Personal Data Collection & PDPA)</span>
+        </div>
+        <p>เพื่อการยืนยันตัวตนและการตรวจสอบบัญชีที่ถูกต้อง ระบบจะเก็บรวบรวมข้อมูลดังต่อไปนี้:</p>
+        <ul class="terms-list">
+          <li><strong>ข้อมูลบัญชีผู้ใช้:</strong> อีเมลสถาบัน (<code>@nu.ac.th</code>), ชื่อ-นามสกุล, และรหัสนิสิต (NUID) ที่ได้จากการเข้าสู่ระบบผ่าน Google OAuth</li>
+          <li><strong>ข้อมูลการทำธุรกรรม:</strong> รูปภาพสลิปหลักฐานการโอนเงิน, วันและเวลาที่ทำรายการ, จำนวนเงิน, และหมายเลขอ้างอิงจากสลิปธนาคาร</li>
+          <li><strong>ประวัติการชำระเงิน:</strong> ยอดเป้าหมายประจำเดือน, ยอดที่ชำระแล้ว, ยอดคงเหลือ, และสถานะการอนุมัติ</li>
+        </ul>
+        <div class="terms-highlight-box">
+          📌 <strong>ความคุ้มครองข้อมูล:</strong> ข้อมูลทั้งหมดถูกนำมาใช้ <em>เพื่อวัตถุประสงค์ในการทำบัญชีและติดตามค่าสาขาภายในรุ่น CPE33 เท่านั้น</em> โดยไม่มีการส่งต่อ เผยแพร่ หรือนำไปใช้เพื่อประโยชน์ทางการค้าอื่นใดทั้งสิ้น
+        </div>
+      </section>
+
+      <!-- Section 3 -->
+      <section class="terms-section">
+        <div class="terms-section-title">
+          <span class="section-icon">🛡️</span>
+          <span>3. การรักษาความปลอดภัยและการเข้าถึงข้อมูล (Security & Access Control)</span>
+        </div>
+        <ul class="terms-list">
+          <li>รูปภาพสลิปโอนเงินถูกจัดเก็บอย่างปลอดภัยบนระบบ Cloud Storage ที่มีลายเซ็นดิจิทัลกำกับ (Signed Uploads)</li>
+          <li>การเข้าถึงข้อมูลเพื่อตรวจสอบ อนุมัติ หรือปฏิเสธสลิป จำกัดสิทธิ์เฉพาะคณะกรรมการรุ่น/เหรัญญิกสาขาที่ได้รับอนุญาตผ่านระบบยืนยันสิทธิ์ (Admin Whitelist) เท่านั้น</li>
+          <li>ทุกการดำเนินการของฝ่ายบริหารจัดการ (การอนุมัติ, การลบสลิป, การปรับเปลี่ยนสถานะ) จะถูกบันทึกประวัติการกระทำ (Audit Log) บนระบบคลาวด์แบบถาวรเพื่อความโปร่งใส</li>
+        </ul>
+      </section>
+
+      <!-- Section 4 -->
+      <section class="terms-section">
+        <div class="terms-section-title">
+          <span class="section-icon">💳</span>
+          <span>4. ความถูกต้องของหลักฐานและหน้าที่ของผู้ใช้ (Slip Authenticity & Conduct)</span>
+        </div>
+        <ul class="terms-list">
+          <li>นิสิตมีหน้าที่ตรวจสอบความถูกต้องของจำนวนเงินและรูปภาพสลิปที่แนบก่อนกดยืนยันการชำระ</li>
+          <li><strong>ห้ามมิให้อัปโหลดหลักฐานเท็จ:</strong> การนำสลิปปลอม สลิปที่ผ่านการตัดต่อแก้ไข หรือสลิปที่เคยใช้งานแล้วมาอัปโหลดซ้ำ ถือเป็นการละเมิดข้อกำหนดอย่างร้ายแรง ระบบจะบันทึกประวัติไว้และส่งเรื่องให้คณะกรรมการรุ่นพิจารณาตามระเบียบวินัยนิสิต</li>
+        </ul>
+      </section>
+
+      <!-- Section 5 -->
+      <section class="terms-section">
+        <div class="terms-section-title">
+          <span class="section-icon">🔄</span>
+          <span>5. การจัดสรรยอดเงินและการคืนเงิน (Ledger Allocation & Refunds)</span>
+        </div>
+        <ul class="terms-list">
+          <li><strong>ระบบจัดสรรหนี้อัตโนมัติ (Auto-Cascading Ledger):</strong> เมื่อสลิปได้รับการอนุมัติ ยอดเงินจะถูกนำไปชำระยอดที่ค้างชำระนานที่สุดก่อนตามลำดับ</li>
+          <li><strong>การชำระเกิน (Overpayment):</strong> กรณีที่นิสิตโอนเงินเกินยอดเป้าหมาย ระบบจะนำเงินส่วนเกินไปหักลบยอดคงค้างในเดือนถัดไปให้อัตโนมัติ หรือนิสิตสามารถแจ้งฝ่ายเหรัญญิกเพื่อขอรับเงินส่วนเกินคืนได้</li>
+        </ul>
+      </section>
+
+      <!-- Section 6 -->
+      <section class="terms-section">
+        <div class="terms-section-title">
+          <span class="section-icon">📞</span>
+          <span>6. การติดต่อและสอบถาม (Contact & Support)</span>
+        </div>
+        <p>
+          หากนิสิตมีข้อสงสัยเกี่ยวกับยอดเงิน การคำนวณหนี้ หรือต้องการสอบถามเรื่องการจัดการข้อมูลส่วนบุคคล สามารถติดต่อฝ่ายเหรัญญิกหรือคณะกรรมการนิสิตวิศวกรรมคอมพิวเตอร์ รุ่นที่ 33 (CPE33) ได้โดยตรง
+        </p>
+      </section>
+
+      <div class="terms-footer-nav">
+        <a href="index.html" class="btn-back-home">‹ กลับหน้าหลัก (Back to Home)</a>
+      </div>
+    </div>
+  </main>
+
+</body>
+</html>
