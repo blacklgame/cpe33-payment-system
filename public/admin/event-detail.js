@@ -57,11 +57,34 @@ const txQty          = document.getElementById("txQty");
 const txNote         = document.getElementById("txNote");
 const amountPreview  = document.getElementById("amountPreview");
 
+// Receipt upload refs
+const txReceiptFile          = document.getElementById("txReceiptFile");
+const receiptUploadBox       = document.getElementById("receiptUploadBox");
+const receiptDropZone        = document.getElementById("receiptDropZone");
+const receiptPreviewWrapper  = document.getElementById("receiptPreviewWrapper");
+const receiptPreviewImg      = document.getElementById("receiptPreviewImg");
+const receiptFileName        = document.getElementById("receiptFileName");
+const btnPreviewZoom         = document.getElementById("btnPreviewZoom");
+const btnRemoveReceipt       = document.getElementById("btnRemoveReceipt");
+
+// Receipt viewer lightbox refs
+const receiptViewerModal     = document.getElementById("receiptViewerModal");
+const receiptViewerTitle     = document.getElementById("receiptViewerTitle");
+const receiptViewerSub       = document.getElementById("receiptViewerSub");
+const receiptViewerClose     = document.getElementById("receiptViewerClose");
+const receiptViewerImg       = document.getElementById("receiptViewerImg");
+const receiptViewerOpenTab   = document.getElementById("receiptViewerOpenTab");
+const receiptViewerCloseBtn  = document.getElementById("receiptViewerCloseBtn");
+
 // ── State ─────────────────────────────────────────────────────
-let currentUser   = null;
-let transactions  = [];
-let selectedType  = "income";
-let editingTxId   = null;
+let currentUser            = null;
+let transactions           = [];
+let selectedType           = "income";
+let editingTxId            = null;
+let selectedReceiptFile    = null;
+let currentReceiptUrl      = null;
+let currentReceiptPublicId = null;
+let isReceiptRemoved       = false;
 
 function goToLogin() {
   clearActivity();
@@ -259,10 +282,18 @@ function renderTransactions() {
     const qtyLabel = tx.quantity > 1 ? ` × ${tx.quantity} ชิ้น` : "";
     const noteHtml = tx.note ? `<span style="opacity:0.65;"> · ${escapeHtml(tx.note)}</span>` : "";
 
+    const receiptBadgeHtml = tx.receiptUrl ? `
+      <button class="receipt-badge-btn" data-view-receipt="${escapeHtml(tx.receiptUrl)}" data-label="${escapeHtml(tx.label)}" data-meta="${dateStr} ${timeStr}${qtyLabel}" title="ดูรูปภาพใบเสร็จ / หลักฐาน">
+        🧾 ดูใบเสร็จ
+      </button>` : "";
+
     card.innerHTML = `
       <div class="tx-type-pill">${isIncome ? "+" : "−"}</div>
       <div class="tx-info">
-        <div class="tx-label">${escapeHtml(tx.label)}</div>
+        <div class="tx-label-row">
+          <span class="tx-label">${escapeHtml(tx.label)}</span>
+          ${receiptBadgeHtml}
+        </div>
         <div class="tx-meta">${fmt(tx.amount)} ต่อหน่วย${qtyLabel} · ${dateStr} ${timeStr}${noteHtml}</div>
       </div>
       <div class="tx-amount-col">
@@ -278,9 +309,119 @@ function renderTransactions() {
     card.querySelector("[data-edit]").addEventListener("click", () => openEditTx(tx.id));
     card.querySelector("[data-del]").addEventListener("click", () => confirmDeleteTx(tx.id, tx.label));
 
+    const receiptBtn = card.querySelector("[data-view-receipt]");
+    if (receiptBtn) {
+      receiptBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openReceiptLightbox(tx.receiptUrl, tx.label, `${dateStr} ${timeStr}${qtyLabel}`);
+      });
+    }
+
     txContainer.appendChild(card);
   });
 }
+
+// ── Receipt File Handling ─────────────────────────────────────
+function resetReceiptState() {
+  selectedReceiptFile    = null;
+  currentReceiptUrl      = null;
+  currentReceiptPublicId = null;
+  isReceiptRemoved       = false;
+  txReceiptFile.value    = "";
+  receiptPreviewImg.src  = "";
+  receiptFileName.textContent = "";
+  receiptPreviewWrapper.style.display = "none";
+  receiptDropZone.style.display = "flex";
+}
+
+function handleReceiptFile(file) {
+  if (!file) return;
+
+  // Validate format
+  const validTypes = ["image/jpeg", "image/png", "image/webp"];
+  if (!validTypes.includes(file.type)) {
+    txModalStatus.textContent = "กรุณาเลือกไฟล์รูปภาพที่เป็น JPG, PNG หรือ WEBP";
+    return;
+  }
+
+  // Validate size (10 MB max)
+  if (file.size > 10 * 1024 * 1024) {
+    txModalStatus.textContent = "ขนาดไฟล์เกิน 10MB กรุณาเลือกรูปภาพที่มีขนาดเล็กกว่านี้";
+    return;
+  }
+
+  txModalStatus.textContent = "";
+  selectedReceiptFile = file;
+  isReceiptRemoved = false;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    receiptPreviewImg.src = e.target.result;
+    receiptFileName.textContent = file.name;
+    receiptPreviewWrapper.style.display = "flex";
+    receiptDropZone.style.display = "none";
+  };
+  reader.readAsDataURL(file);
+}
+
+// Click to choose file
+receiptDropZone.addEventListener("click", () => {
+  txReceiptFile.click();
+});
+
+txReceiptFile.addEventListener("change", (e) => {
+  if (e.target.files && e.target.files[0]) {
+    handleReceiptFile(e.target.files[0]);
+  }
+});
+
+// Drag and drop
+receiptUploadBox.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  receiptUploadBox.classList.add("dragover");
+});
+
+receiptUploadBox.addEventListener("dragleave", () => {
+  receiptUploadBox.classList.remove("dragover");
+});
+
+receiptUploadBox.addEventListener("drop", (e) => {
+  e.preventDefault();
+  receiptUploadBox.classList.remove("dragover");
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+    handleReceiptFile(e.dataTransfer.files[0]);
+  }
+});
+
+// Remove receipt button
+btnRemoveReceipt.addEventListener("click", (e) => {
+  e.stopPropagation();
+  selectedReceiptFile = null;
+  currentReceiptUrl = null;
+  isReceiptRemoved = true;
+  txReceiptFile.value = "";
+  receiptPreviewImg.src = "";
+  receiptPreviewWrapper.style.display = "none";
+  receiptDropZone.style.display = "flex";
+});
+
+// Preview zoom button in modal
+btnPreviewZoom.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const src = receiptPreviewImg.src;
+  if (src) {
+    openReceiptLightbox(src, txLabel.value.trim() || "ตัวอย่างใบเสร็จ", "พรีวิวก่อนบันทึก");
+  }
+});
+
+// Click thumbnail to zoom
+receiptPreviewImg.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const src = receiptPreviewImg.src;
+  if (src) {
+    openReceiptLightbox(src, txLabel.value.trim() || "ตัวอย่างใบเสร็จ", "พรีวิวก่อนบันทึก");
+  }
+});
 
 // ── Add transaction modal ─────────────────────────────────────
 addTxBtn.addEventListener("click", () => openAddTxModal());
@@ -294,6 +435,7 @@ function openAddTxModal() {
   txNote.value   = "";
   amountPreview.textContent = "";
   txModalStatus.textContent = "";
+  resetReceiptState();
   setTxType("income");
   openModal(txModal);
   txLabel.focus();
@@ -309,6 +451,17 @@ function openEditTx(txId) {
   txQty.value    = tx.quantity || 1;
   txNote.value   = tx.note   || "";
   txModalStatus.textContent = "";
+  resetReceiptState();
+
+  if (tx.receiptUrl) {
+    currentReceiptUrl = tx.receiptUrl;
+    currentReceiptPublicId = tx.receiptPublicId || null;
+    receiptPreviewImg.src = tx.receiptUrl;
+    receiptFileName.textContent = "ใบเสร็จที่แนบไว้";
+    receiptPreviewWrapper.style.display = "flex";
+    receiptDropZone.style.display = "none";
+  }
+
   setTxType(tx.type || "income");
   updateAmountPreview();
   openModal(txModal);
@@ -354,13 +507,57 @@ txModalSave.addEventListener("click", async () => {
   txModalStatus.textContent = "";
 
   try {
+    let finalReceiptUrl = currentReceiptUrl;
+    let finalReceiptPublicId = currentReceiptPublicId;
+
+    // If new file chosen, upload to Cloudinary with signed ticket
+    if (selectedReceiptFile) {
+      txModalStatus.textContent = "กำลังอัปโหลดรูปภาพใบเสร็จ...";
+      const signTicket = await apiFetch("/api/admin/events-api", {
+        method: "POST",
+        body: JSON.stringify({ action: "sign-receipt-upload", eventId })
+      });
+
+      const formData = new FormData();
+      formData.append("file", selectedReceiptFile);
+      formData.append("api_key", signTicket.apiKey);
+      formData.append("timestamp", signTicket.timestamp);
+      formData.append("signature", signTicket.signature);
+      formData.append("public_id", signTicket.publicId);
+      formData.append("overwrite", "false");
+
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${signTicket.cloudName || "egcc6hml"}/image/upload`,
+        { method: "POST", body: formData }
+      );
+
+      if (!uploadRes.ok) {
+        const errJson = await uploadRes.json().catch(() => ({}));
+        throw new Error(errJson.error?.message || "Upload to Cloudinary failed");
+      }
+
+      const uploadData = await uploadRes.json();
+      finalReceiptUrl = uploadData.secure_url;
+      finalReceiptPublicId = uploadData.public_id;
+    }
+
+    txModalStatus.textContent = "กำลังบันทึกข้อมูล...";
+
     if (editingTxId) {
       await apiFetch("/api/admin/events-api", {
         method: "PUT",
         body: JSON.stringify({
           action: "update-transaction",
-          eventId, txId: editingTxId,
-          type: selectedType, label, amount, quantity: qty, note
+          eventId,
+          txId: editingTxId,
+          type: selectedType,
+          label,
+          amount,
+          quantity: qty,
+          note,
+          receiptUrl: finalReceiptUrl,
+          receiptPublicId: finalReceiptPublicId,
+          removeReceipt: isReceiptRemoved
         })
       });
     } else {
@@ -369,10 +566,17 @@ txModalSave.addEventListener("click", async () => {
         body: JSON.stringify({
           action: "add-transaction",
           eventId,
-          type: selectedType, label, amount, quantity: qty, note
+          type: selectedType,
+          label,
+          amount,
+          quantity: qty,
+          note,
+          receiptUrl: finalReceiptUrl,
+          receiptPublicId: finalReceiptPublicId
         })
       });
     }
+
     closeModal(txModal);
     await loadEventDetail();
   } catch (err) {
@@ -402,6 +606,21 @@ async function confirmDeleteTx(txId, label) {
   }
 }
 
+// ── Lightbox / Receipt Viewer ─────────────────────────────────
+function openReceiptLightbox(url, title, subtitle) {
+  receiptViewerTitle.textContent = "🧾 " + (title || "ใบเสร็จ");
+  receiptViewerSub.textContent   = subtitle || "";
+  receiptViewerImg.src           = url;
+  receiptViewerOpenTab.href      = url;
+  openModal(receiptViewerModal);
+}
+
+receiptViewerClose.addEventListener("click", () => closeModal(receiptViewerModal));
+receiptViewerCloseBtn.addEventListener("click", () => closeModal(receiptViewerModal));
+receiptViewerModal.addEventListener("click", (e) => {
+  if (e.target === receiptViewerModal) closeModal(receiptViewerModal);
+});
+
 // ── Modal helpers ─────────────────────────────────────────────
 function openModal(overlay) {
   overlay.classList.add("open");
@@ -414,5 +633,8 @@ function closeModal(overlay) {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && txModal.classList.contains("open")) closeModal(txModal);
+  if (e.key === "Escape") {
+    if (receiptViewerModal.classList.contains("open")) closeModal(receiptViewerModal);
+    else if (txModal.classList.contains("open")) closeModal(txModal);
+  }
 });

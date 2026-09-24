@@ -93,6 +93,28 @@
     <div id="eventsContainer" style="display:none;"></div>
   </main>
 
+  <!-- ── Modal: View Receipt Lightbox ── -->
+  <div class="modal-overlay" id="receiptViewerModal" role="dialog" aria-modal="true" aria-labelledby="receiptViewerTitle">
+    <div class="modal modal-receipt-viewer">
+      <div class="receipt-viewer-header">
+        <div class="receipt-viewer-title-wrap">
+          <div class="modal-title" id="receiptViewerTitle">🧾 ใบเสร็จ / หลักฐาน</div>
+          <div class="receipt-viewer-sub" id="receiptViewerSub"></div>
+        </div>
+        <button class="receipt-viewer-close" id="receiptViewerClose" aria-label="ปิด">✕</button>
+      </div>
+      <div class="receipt-viewer-body">
+        <img id="receiptViewerImg" src="" alt="ใบเสร็จ / หลักฐาน" class="receipt-full-img">
+      </div>
+      <div class="receipt-viewer-footer">
+        <a id="receiptViewerOpenTab" href="#" target="_blank" rel="noopener noreferrer" class="btn-open-tab">
+          ↗ เปิดรูปภาพในแท็บใหม่
+        </a>
+        <button class="btn-cancel" id="receiptViewerCloseBtn">ปิด</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="events-member.js"></script>
 </body>
 </html>

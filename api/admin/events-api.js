@@ -1,4 +1,6 @@
 const admin = require("firebase-admin");
+const cloudinary = require("cloudinary").v2;
+const crypto = require("crypto");
 const { checkIsAdmin } = require("../_lib/admins");
 const { rateLimit, clientIp } = require("../_lib/rate-limit");
 const { writeAuditLog } = require("../_lib/audit");
@@ -6,7 +8,8 @@ const { writeAuditLog } = require("../_lib/audit");
 /* ------------------------------------------------------------
    api/admin/events-api.js
    Consolidated Serverless Function for all Admin Event/Transaction CRUD
-   operations, updated to implement Option A (Denormalized Totals).
+   operations, updated to implement Option A (Denormalized Totals) and
+   support receipt photo attachments for income & expense transactions.
 
    All transaction mutations are executed inside Firestore transactions
    to keep the event totals in sync.
@@ -19,6 +22,12 @@ if (!admin.apps.length) {
   ).toString("utf8");
   admin.initializeApp({ credential: admin.credential.cert(JSON.parse(saJson)) });
 }
+
+cloudinary.config({
+  cloud_name: "egcc6hml",
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 module.exports = async function handler(req, res) {
   try {
@@ -108,6 +117,13 @@ module.exports = async function handler(req, res) {
         const txSnap = await eventRef.collection("transactions").orderBy("createdAt", "asc").get();
         const transactions = txSnap.docs.map((doc) => {
           const d = doc.data();
+          let receipts = [];
+          if (Array.isArray(d.receipts)) {
+            receipts = d.receipts.filter((r) => r && typeof r.url === "string" && r.url.startsWith("https://"));
+          } else if (d.receiptUrl) {
+            receipts = [{ url: d.receiptUrl, publicId: d.receiptPublicId || null }];
+          }
+
           return {
             id: doc.id,
             type: d.type,
@@ -116,6 +132,9 @@ module.exports = async function handler(req, res) {
             quantity: d.quantity || 1,
             totalAmount: d.totalAmount || (d.amount * d.quantity),
             note: d.note || "",
+            receipts,
+            receiptUrl: receipts[0]?.url || d.receiptUrl || null,
+            receiptPublicId: receipts[0]?.publicId || d.receiptPublicId || null,
             createdBy: d.createdBy || "",
             createdAt: d.createdAt ? d.createdAt.toDate().toISOString() : null,
             updatedAt: d.updatedAt ? d.updatedAt.toDate().toISOString() : null
@@ -142,6 +161,36 @@ module.exports = async function handler(req, res) {
 
     // --- POST ACTIONS ---
     if (req.method === "POST") {
+      if (action === "sign-receipt-upload") {
+        // --- Issue signed ticket for receipt image upload to Cloudinary ---
+        const { eventId } = req.body || {};
+        if (!eventId || typeof eventId !== "string") {
+          res.status(400).json({ error: "eventId is required" });
+          return;
+        }
+
+        const eventRef = db.collection("events").doc(eventId);
+        const eventSnap = await eventRef.get();
+        if (!eventSnap.exists) {
+          res.status(404).json({ error: "Event not found" });
+          return;
+        }
+
+        const timestamp = Math.floor(Date.now() / 1000);
+        const publicId = `events/${eventId}/receipts/${timestamp}_${crypto.randomBytes(8).toString("hex")}`;
+        const paramsToSign = { overwrite: "false", public_id: publicId, timestamp };
+        const signature = cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET);
+
+        res.status(200).json({
+          timestamp,
+          signature,
+          publicId,
+          apiKey: process.env.CLOUDINARY_API_KEY,
+          cloudName: "egcc6hml"
+        });
+        return;
+      }
+
       if (action === "create") {
         // --- Create Event (Initialize totals at 0) ---
         const { name, emoji } = req.body || {};
@@ -174,7 +223,7 @@ module.exports = async function handler(req, res) {
 
       if (action === "add-transaction") {
         // --- Add Transaction (Uses Transaction to update Event totals) ---
-        const { eventId, type, label, amount, quantity, note } = req.body || {};
+        const { eventId, type, label, amount, quantity, note, receiptUrl, receiptPublicId } = req.body || {};
         if (!eventId || typeof eventId !== "string") {
           res.status(400).json({ error: "eventId is required" }); return;
         }
@@ -200,6 +249,9 @@ module.exports = async function handler(req, res) {
         const qty = Number(quantity);
         const quantityNum = Number.isFinite(qty) && qty >= 1 ? Math.min(1000, Math.floor(qty)) : 1;
         const totalAmount = amountNum * quantityNum;
+
+        const cleanReceiptUrl = typeof receiptUrl === "string" && receiptUrl.startsWith("https://") ? receiptUrl.trim() : null;
+        const cleanReceiptPublicId = typeof receiptPublicId === "string" && receiptPublicId.trim().length > 0 ? receiptPublicId.trim() : null;
 
         const eventRef = db.collection("events").doc(eventId);
         const newTxRef = eventRef.collection("transactions").doc();
@@ -235,6 +287,8 @@ module.exports = async function handler(req, res) {
             quantity: quantityNum,
             totalAmount,
             note: typeof note === "string" ? note.trim() : "",
+            receiptUrl: cleanReceiptUrl,
+            receiptPublicId: cleanReceiptPublicId,
             createdBy: email,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -257,7 +311,8 @@ module.exports = async function handler(req, res) {
           label: label.trim(),
           amount: amountNum,
           quantity: quantityNum,
-          totalAmount: finalTotalAmount
+          totalAmount: finalTotalAmount,
+          hasReceipt: !!cleanReceiptUrl
         });
 
         res.status(200).json({ ok: true, txId: newTxRef.id, totalAmount: finalTotalAmount });
@@ -302,7 +357,7 @@ module.exports = async function handler(req, res) {
 
       if (action === "update-transaction") {
         // --- Update Transaction (Uses Transaction to re-calculate Event totals) ---
-        const { eventId, txId, type, label, amount, quantity, note } = req.body || {};
+        const { eventId, txId, type, label, amount, quantity, note, receiptUrl, receiptPublicId, removeReceipt } = req.body || {};
         if (!eventId || !txId) {
           res.status(400).json({ error: "eventId and txId are required" }); return;
         }
@@ -314,6 +369,7 @@ module.exports = async function handler(req, res) {
         const txRef = eventRef.collection("transactions").doc(txId);
 
         let finalTotalAmount = 0;
+        let oldPublicIdToClean = null;
 
         await db.runTransaction(async (transaction) => {
           const eventSnap = await transaction.get(eventRef);
@@ -368,6 +424,22 @@ module.exports = async function handler(req, res) {
           if (label !== undefined) txUpdates.label = label.trim();
           if (note !== undefined) txUpdates.note = note.trim();
 
+          if (removeReceipt === true) {
+            txUpdates.receiptUrl = null;
+            txUpdates.receiptPublicId = null;
+            if (txData.receiptPublicId) {
+              oldPublicIdToClean = txData.receiptPublicId;
+            }
+          } else if (typeof receiptUrl === "string" && receiptUrl.startsWith("https://")) {
+            txUpdates.receiptUrl = receiptUrl.trim();
+            if (typeof receiptPublicId === "string" && receiptPublicId.trim().length > 0) {
+              txUpdates.receiptPublicId = receiptPublicId.trim();
+              if (txData.receiptPublicId && txData.receiptPublicId !== receiptPublicId.trim()) {
+                oldPublicIdToClean = txData.receiptPublicId;
+              }
+            }
+          }
+
           transaction.update(txRef, txUpdates);
           transaction.update(eventRef, {
             totalIncome,
@@ -377,6 +449,14 @@ module.exports = async function handler(req, res) {
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
         });
+
+        if (oldPublicIdToClean) {
+          try {
+            await cloudinary.uploader.destroy(oldPublicIdToClean, { resource_type: "image" });
+          } catch (cErr) {
+            console.warn("Cloudinary destroy warning:", cErr);
+          }
+        }
 
         await writeAuditLog(db, "update_transaction", email, { eventId, txId, label });
         res.status(200).json({ ok: true, totalAmount: finalTotalAmount });
@@ -407,9 +487,25 @@ module.exports = async function handler(req, res) {
         const eventName = snap.data().name || eventId;
         const txSnap = await eventRef.collection("transactions").get();
         const batch = db.batch();
-        txSnap.docs.forEach((doc) => batch.delete(doc.ref));
+        const publicIdsToDestroy = [];
+
+        txSnap.docs.forEach((doc) => {
+          const tData = doc.data();
+          if (tData.receiptPublicId) {
+            publicIdsToDestroy.push(tData.receiptPublicId);
+          }
+          batch.delete(doc.ref);
+        });
         batch.delete(eventRef);
         await batch.commit();
+
+        for (const pId of publicIdsToDestroy) {
+          try {
+            await cloudinary.uploader.destroy(pId, { resource_type: "image" });
+          } catch (cErr) {
+            console.warn("Cloudinary destroy warning:", cErr);
+          }
+        }
 
         await writeAuditLog(db, "delete_event", email, { eventId, eventName, transactionsDeleted: txSnap.size });
         res.status(200).json({ ok: true });
@@ -425,6 +521,7 @@ module.exports = async function handler(req, res) {
 
         const eventRef = db.collection("events").doc(eventId);
         const txRef = eventRef.collection("transactions").doc(txId);
+        let receiptPublicIdToDestroy = null;
 
         await db.runTransaction(async (transaction) => {
           const eventSnap = await transaction.get(eventRef);
@@ -452,6 +549,10 @@ module.exports = async function handler(req, res) {
           }
           transactionCount = Math.max(0, transactionCount - 1);
 
+          if (txData.receiptPublicId) {
+            receiptPublicIdToDestroy = txData.receiptPublicId;
+          }
+
           transaction.delete(txRef);
           transaction.update(eventRef, {
             totalIncome,
@@ -462,6 +563,14 @@ module.exports = async function handler(req, res) {
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
         });
+
+        if (receiptPublicIdToDestroy) {
+          try {
+            await cloudinary.uploader.destroy(receiptPublicIdToDestroy, { resource_type: "image" });
+          } catch (cErr) {
+            console.warn("Cloudinary destroy warning:", cErr);
+          }
+        }
 
         await writeAuditLog(db, "delete_transaction", email, { eventId, txId });
         res.status(200).json({ ok: true });

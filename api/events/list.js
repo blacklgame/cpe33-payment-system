@@ -84,6 +84,7 @@ module.exports = async function handler(req, res) {
         quantity: t.quantity || 1,
         totalAmount: t.totalAmount || amt,
         note: t.note || "",
+        receiptUrl: t.receiptUrl || null,
         createdAt: t.createdAt ? t.createdAt.toDate().toISOString() : null
       });
     });

@@ -24,6 +24,15 @@ const grandIncomeEl  = document.getElementById("grandIncome");
 const grandExpenseEl = document.getElementById("grandExpense");
 const grandBalanceEl = document.getElementById("grandBalance");
 
+// Lightbox refs
+const receiptViewerModal     = document.getElementById("receiptViewerModal");
+const receiptViewerTitle     = document.getElementById("receiptViewerTitle");
+const receiptViewerSub       = document.getElementById("receiptViewerSub");
+const receiptViewerClose     = document.getElementById("receiptViewerClose");
+const receiptViewerImg       = document.getElementById("receiptViewerImg");
+const receiptViewerOpenTab   = document.getElementById("receiptViewerOpenTab");
+const receiptViewerCloseBtn  = document.getElementById("receiptViewerCloseBtn");
+
 // ── Auth guard ────────────────────────────────────────────────
 let currentUser = null;
 
@@ -232,12 +241,29 @@ function renderEvents(events, monthlyIncomeTotal = 0, monthlyPaidCount = 0) {
           : "";
         const qtyLabel = tx.quantity > 1 ? ` × ${tx.quantity}` : "";
 
+        const receiptBtnHtml = tx.receiptUrl ? `
+          <button class="mini-receipt-btn" data-view-receipt="${escapeHtml(tx.receiptUrl)}" data-label="${escapeHtml(tx.label)}" data-meta="${dateStr}${qtyLabel}" title="ดูใบเสร็จ / หลักฐาน">
+            🧾 ใบเสร็จ
+          </button>` : "";
+
         row.innerHTML = `
           <div class="mini-sign">${isIncome ? "+" : "−"}</div>
-          <div class="mini-label">${escapeHtml(tx.label)}</div>
+          <div class="mini-label-wrap">
+            <span class="mini-label">${escapeHtml(tx.label)}</span>
+            ${receiptBtnHtml}
+          </div>
           <div class="mini-meta">${dateStr}${qtyLabel}</div>
           <div class="mini-amount">${isIncome ? "+" : "−"}${fmt(tx.totalAmount)}</div>
         `;
+
+        const receiptBtn = row.querySelector("[data-view-receipt]");
+        if (receiptBtn) {
+          receiptBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openReceiptLightbox(tx.receiptUrl, tx.label, `${dateStr}${qtyLabel}`);
+          });
+        }
+
         body.appendChild(row);
       });
     }
@@ -258,3 +284,42 @@ function renderEvents(events, monthlyIncomeTotal = 0, monthlyPaidCount = 0) {
     eventsContainer.appendChild(accordion);
   });
 }
+
+// ── Lightbox / Receipt Viewer ─────────────────────────────────
+function openReceiptLightbox(url, title, subtitle) {
+  if (!receiptViewerModal) return;
+  receiptViewerTitle.textContent = "🧾 " + (title || "ใบเสร็จ");
+  receiptViewerSub.textContent   = subtitle || "";
+  receiptViewerImg.src           = url;
+  receiptViewerOpenTab.href      = url;
+  openModal(receiptViewerModal);
+}
+
+if (receiptViewerClose) {
+  receiptViewerClose.addEventListener("click", () => closeModal(receiptViewerModal));
+}
+if (receiptViewerCloseBtn) {
+  receiptViewerCloseBtn.addEventListener("click", () => closeModal(receiptViewerModal));
+}
+if (receiptViewerModal) {
+  receiptViewerModal.addEventListener("click", (e) => {
+    if (e.target === receiptViewerModal) closeModal(receiptViewerModal);
+  });
+}
+
+// ── Modal helpers ─────────────────────────────────────────────
+function openModal(overlay) {
+  overlay.classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeModal(overlay) {
+  overlay.classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && receiptViewerModal && receiptViewerModal.classList.contains("open")) {
+    closeModal(receiptViewerModal);
+  }
+});

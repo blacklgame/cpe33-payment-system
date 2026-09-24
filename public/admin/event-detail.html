@@ -155,12 +155,57 @@
           <input type="text" id="txNote" class="input-field"
                  placeholder="รายละเอียดเพิ่มเติม..." maxlength="300">
         </label>
+
+        <!-- Receipt / Photo attachment -->
+        <label class="field-label">
+          รูปภาพ / สลิป / ใบเสร็จ (ไม่บังคับ)
+          <div class="receipt-upload-box" id="receiptUploadBox">
+            <input type="file" id="txReceiptFile" accept="image/jpeg,image/png,image/webp" style="display:none;">
+            <div class="receipt-drop-zone" id="receiptDropZone">
+              <div class="receipt-drop-icon">📷</div>
+              <div class="receipt-drop-text">คลิกหรือลากรูปภาพใบเสร็จมาที่นี่</div>
+              <div class="receipt-drop-sub">รองรับ JPG, PNG, WEBP (สูงสุด 10MB)</div>
+            </div>
+            <div class="receipt-preview-wrapper" id="receiptPreviewWrapper" style="display:none;">
+              <img id="receiptPreviewImg" src="" alt="ตัวอย่างใบเสร็จ" class="receipt-thumb-img">
+              <div class="receipt-preview-info">
+                <span id="receiptFileName" class="receipt-filename">receipt.jpg</span>
+                <div class="receipt-preview-btns">
+                  <button type="button" class="btn-preview-action" id="btnPreviewZoom">🔍 ดูรูปเต็ม</button>
+                  <button type="button" class="btn-preview-action btn-preview-danger" id="btnRemoveReceipt">✕ ลบรูป</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </label>
       </div>
 
       <p class="modal-status" id="txModalStatus"></p>
       <div class="modal-actions">
         <button class="btn-cancel" id="txModalCancel">ยกเลิก</button>
         <button class="btn-primary" id="txModalSave" style="font-size:0.95rem;padding:11px 24px;">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: View Receipt Lightbox ── -->
+  <div class="modal-overlay" id="receiptViewerModal" role="dialog" aria-modal="true" aria-labelledby="receiptViewerTitle">
+    <div class="modal modal-receipt-viewer">
+      <div class="receipt-viewer-header">
+        <div class="receipt-viewer-title-wrap">
+          <div class="modal-title" id="receiptViewerTitle">🧾 ใบเสร็จ / หลักฐาน</div>
+          <div class="receipt-viewer-sub" id="receiptViewerSub"></div>
+        </div>
+        <button class="receipt-viewer-close" id="receiptViewerClose" aria-label="ปิด">✕</button>
+      </div>
+      <div class="receipt-viewer-body">
+        <img id="receiptViewerImg" src="" alt="ใบเสร็จ / หลักฐาน" class="receipt-full-img">
+      </div>
+      <div class="receipt-viewer-footer">
+        <a id="receiptViewerOpenTab" href="#" target="_blank" rel="noopener noreferrer" class="btn-open-tab">
+          ↗ เปิดรูปภาพในแท็บใหม่
+        </a>
+        <button class="btn-cancel" id="receiptViewerCloseBtn">ปิด</button>
       </div>
     </div>
   </div>
