@@ -150,6 +150,7 @@ if (!raw) {
           slipLink.classList.add("show");
         }
 
+        renderBatchProgress(months);
         renderMonthsList(months, statusByMonth);
       })
       .catch((err) => {
@@ -170,6 +171,47 @@ if (!raw) {
     }
     loadStatsData();
   })();
+
+  // ── Batch Progress Bar ────────────────────────────────────────
+  const batchProgressCard = document.getElementById("batchProgressCard");
+  const batchProgressTitle = document.getElementById("batchProgressTitle");
+  const batchProgressPct = document.getElementById("batchProgressPct");
+  const batchProgressFill = document.getElementById("batchProgressFill");
+  const batchProgressSub = document.getElementById("batchProgressSub");
+
+  function renderBatchProgress(months) {
+    if (!batchProgressCard || !months || months.length === 0) return;
+
+    // Pick the latest month that has aggregate data
+    const monthWithCount = months.find((m) => typeof m.paidCount === "number" && typeof m.totalUsers === "number");
+    if (!monthWithCount) {
+      batchProgressCard.style.display = "none";
+      return;
+    }
+
+    const paid = monthWithCount.paidCount || 0;
+    const total = monthWithCount.totalUsers || 0;
+    if (total === 0) {
+      batchProgressCard.style.display = "none";
+      return;
+    }
+
+    const pct = Math.round((paid / total) * 100);
+    const monthLabel = monthWithCount.label || monthWithCount.id;
+
+    batchProgressTitle.textContent = `📊 ค่าสาขา ${monthLabel}`;
+    batchProgressPct.textContent = `${pct}%`;
+    batchProgressSub.textContent = `จ่ายแล้ว ${paid} / ${total} คน · ยังไม่จ่าย ${total - paid} คน`;
+
+    requestAnimationFrame(() => {
+      batchProgressFill.style.width = pct + "%";
+      batchProgressFill.classList.remove("warn", "danger");
+      if (pct < 50) batchProgressFill.classList.add("danger");
+      else if (pct < 80) batchProgressFill.classList.add("warn");
+    });
+
+    batchProgressCard.style.display = "flex";
+  }
 
   let selectedStatsYear = null;
 
@@ -207,6 +249,7 @@ if (!raw) {
       allBtn.textContent = "ทั้งหมด";
       allBtn.addEventListener("click", () => {
         selectedStatsYear = "all";
+        renderBatchProgress(months);
         renderMonthsList(months, statusByMonth);
       });
       tabsBar.appendChild(allBtn);
@@ -219,6 +262,7 @@ if (!raw) {
       yrBtn.textContent = `ปี ${yr}`;
       yrBtn.addEventListener("click", () => {
         selectedStatsYear = yr;
+        renderBatchProgress(months);
         renderMonthsList(months, statusByMonth);
       });
       tabsBar.appendChild(yrBtn);

@@ -498,3 +498,51 @@ h1 {
 .month-row-pill.pill-partial {
   background: #3b82f6;
 }
+
+/* QR Payment area inside the bank card */
+.bank-qr-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.bank-qr-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.bank-qr-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #34d399;
+  letter-spacing: 0.3px;
+}
+
+.bank-qr-wrap {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 12px;
+  display: inline-block;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.bank-qr-img {
+  display: block;
+  width: 200px;
+  height: auto;
+  border-radius: 6px;
+}
+
+.bank-qr-hint {
+  font-size: 0.75rem;
+  color: #6b8f82;
+  letter-spacing: 0.3px;
+}
+
+@media (max-width: 400px) {
+  .bank-qr-img {
+    width: 170px;
+  }
+}

@@ -74,6 +74,17 @@
       </div>
     </div>
 
+    <!-- Batch progress bar: how many students in the whole cohort paid -->
+    <div class="batch-progress-card" id="batchProgressCard" style="display:none;">
+      <div class="batch-progress-header">
+        <span class="batch-progress-title" id="batchProgressTitle">📊 ความคืบหน้าของรุ่น</span>
+        <span class="batch-progress-pct" id="batchProgressPct">0%</span>
+      </div>
+      <div class="batch-progress-bar-wrap">
+        <div class="batch-progress-bar-fill" id="batchProgressFill" style="width:0%"></div>
+      </div>
+      <div class="batch-progress-sub" id="batchProgressSub">กำลังโหลด...</div>
+    </div>
     <!-- Per-month breakdown: one row per billing month an admin has
          created, with this student's own status/slip for it. -->
     <div class="months-section">

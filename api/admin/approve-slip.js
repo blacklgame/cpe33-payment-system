@@ -190,6 +190,34 @@ module.exports = async function handler(request, response) {
 
     await writeAuditLog(db, "approve_slip", email, { nuid, monthId });
 
+    // ── Update aggregate paidCount on each month doc (best-effort) ──
+    // Students can read /months/{id} (Firestore rule allows auth'd reads)
+    // but NOT other students' /payments/* docs. Storing paidCount +
+    // totalUsers in the month doc lets /stats show batch progress without
+    // exposing individual payment data or needing an extra admin API call.
+    try {
+      const allMonthsSnap = await db.collection("months").get();
+      const usersSnap = await db.collection("payments").get();
+      const totalUsers = usersSnap.size;
+
+      await Promise.all(
+        allMonthsSnap.docs.map(async (mDoc) => {
+          const mId = mDoc.id;
+          let paidCount = 0;
+          await Promise.all(
+            usersSnap.docs.map(async (pDoc) => {
+              const monthSnap = await pDoc.ref.collection("months").doc(mId).get();
+              if (monthSnap.exists && monthSnap.data().paid === true) paidCount++;
+            })
+          );
+          await mDoc.ref.update({ paidCount, totalUsers });
+        })
+      );
+    } catch (aggErr) {
+      // Best-effort only — a failure here must NOT fail the approval itself.
+      console.warn("paidCount aggregate update failed (non-fatal):", aggErr.message);
+    }
+
     response.status(200).json({ ok: true });
   } catch (err) {
     console.error("Admin approve-slip failed:", err);

@@ -587,6 +587,7 @@ function renderCurrentView() {
   } else {
     renderPageRows();
   }
+  updateAdminActionBar();
 }
 
 function updateFilterBadges() {
@@ -1419,6 +1420,150 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 });
+
+/* ------------------------------------------------------------
+   Admin Action Bar: Export CSV + Copy Unpaid List
+   Both are 100% client-side — no extra API calls or Serverless
+   Functions consumed.
+------------------------------------------------------------ */
+
+const adminActionBar = document.getElementById("adminActionBar");
+const exportCsvBtn   = document.getElementById("exportCsvBtn");
+const copyUnpaidBtn  = document.getElementById("copyUnpaidBtn");
+
+// Show/hide the action bar whenever the view re-renders
+function updateAdminActionBar() {
+  if (!adminActionBar) return;
+
+  const hasData = allUsers.length > 0;
+  adminActionBar.style.display = hasData ? "flex" : "none";
+
+  // "Copy Unpaid" button only shows when unpaid filter is active
+  if (copyUnpaidBtn) {
+    const isUnpaidFilter = currentStatusFilter === "unpaid";
+    const unpaidUsers = allUsers.filter((u) => u.displayStatus === "unpaid");
+    copyUnpaidBtn.style.display = (isUnpaidFilter && unpaidUsers.length > 0) ? "inline-flex" : "none";
+  }
+}
+
+// ── Export CSV ────────────────────────────────────────────────
+function exportDashboardCsv() {
+  if (allUsers.length === 0) return;
+
+  const curMonthObj = rawMonths.find((m) => m.id === currentMonthId);
+  const monthLabel = currentMonthId === "ALL"
+    ? "รวมทุกเดือน"
+    : (curMonthObj ? (curMonthObj.label || curMonthObj.id) : currentMonthId || "ทั้งหมด");
+
+  const headers = ["ลำดับ", "รหัสนิสิต", "ชื่อ-สกุล", "อีเมล", "สถานะ", "เป้าหมาย (บาท)", "ชำระแล้ว (บาท)", "คงเหลือ (บาท)"];
+
+  const STATUS_TH = {
+    paid: "จ่ายแล้ว",
+    pending: "รอตรวจสอบ",
+    partial: "ผ่อนจ่าย",
+    unpaid: "ยังไม่จ่าย",
+    termination: "พ้นสภาพ",
+    normal: "ปกติ"
+  };
+
+  const rows = allUsers.map((u) => [
+    u.index,
+    u.nuid,
+    u.name,
+    u.email,
+    STATUS_TH[u.displayStatus] || u.displayStatus,
+    u.targetAmount != null ? u.targetAmount : "",
+    u.paidAmount  != null ? u.paidAmount  : "",
+    u.remainingBalance != null ? u.remainingBalance : ""
+  ]);
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+
+  const bom = "\uFEFF"; // UTF-8 BOM so Excel opens Thai text correctly
+  const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+
+  const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "-");
+  const fileName = `CPE33_dues_${monthLabel}_${dateStr}.csv`;
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+if (exportCsvBtn) {
+  exportCsvBtn.addEventListener("click", () => {
+    exportDashboardCsv();
+
+    // Brief visual feedback
+    const orig = exportCsvBtn.textContent;
+    exportCsvBtn.textContent = "✅ ดาวน์โหลดแล้ว";
+    exportCsvBtn.classList.add("copied");
+    setTimeout(() => {
+      exportCsvBtn.textContent = orig;
+      exportCsvBtn.classList.remove("copied");
+    }, 2000);
+  });
+}
+
+// ── Copy Unpaid List ──────────────────────────────────────────
+function buildUnpaidMessage() {
+  const unpaidUsers = allUsers.filter((u) => u.displayStatus === "unpaid");
+  if (unpaidUsers.length === 0) return "";
+
+  const curMonthObj = rawMonths.find((m) => m.id === currentMonthId);
+  const monthLabel = currentMonthId === "ALL"
+    ? "รวมทุกเดือน"
+    : (curMonthObj ? (curMonthObj.label || curMonthObj.id) : currentMonthId || "");
+  const amount = currentMonthId !== "ALL" && curMonthObj
+    ? `${Number(curMonthObj.amount || 0).toLocaleString("th-TH")} บาท`
+    : "";
+
+  const siteUrl = window.location.origin;
+
+  const lines = [
+    `📢 แจ้งเตือนค่าสาขา CPE33 ประจำ${monthLabel}`,
+    amount ? `ยอดค้างชำระ ${amount} นิสิตที่ยังไม่ได้ส่งสลิป:` : `นิสิตที่ยังไม่ได้ส่งสลิป:`,
+    ...unpaidUsers.map((u) => `- ${u.nuid} (${u.name})`),
+    ``,
+    `ชำระได้ที่: ${siteUrl}/logined/`
+  ];
+
+  return lines.join("\n");
+}
+
+if (copyUnpaidBtn) {
+  copyUnpaidBtn.addEventListener("click", async () => {
+    const msg = buildUnpaidMessage();
+    if (!msg) return;
+
+    try {
+      await navigator.clipboard.writeText(msg);
+    } catch {
+      // Fallback for older browsers
+      const ta = document.createElement("textarea");
+      ta.value = msg;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+
+    const orig = copyUnpaidBtn.textContent;
+    copyUnpaidBtn.textContent = "✅ คัดลอกแล้ว!";
+    copyUnpaidBtn.classList.add("copied");
+    setTimeout(() => {
+      copyUnpaidBtn.textContent = orig;
+      copyUnpaidBtn.classList.remove("copied");
+    }, 2500);
+  });
+}
 
 // Touch swipe gestures for mobile navigation
 let frTouchStartX = 0;

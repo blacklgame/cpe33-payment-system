@@ -222,6 +222,11 @@ async function loadEventDetail() {
 
     updateDonutCharts();
     renderTransactions();
+
+    const exportEventCsvBtn = document.getElementById("exportEventCsvBtn");
+    if (exportEventCsvBtn) {
+      exportEventCsvBtn.style.display = transactions.length > 0 ? "inline-flex" : "none";
+    }
   } catch (err) {
     console.error(err);
     if (err.message.includes("401") || err.message.includes("403")) {
@@ -806,6 +811,66 @@ document.addEventListener("keydown", (e) => {
 // Touch swipe gestures for mobile Lightbox
 let lbTouchStartX = 0;
 let lbTouchStartY = 0;
+// ── Export Event Transactions CSV ─────────────────────────────
+function exportEventCsv() {
+  if (!transactions || transactions.length === 0) return;
+
+  const eventName = detailName ? detailName.textContent : (eventId || "event");
+
+  const headers = ["ลำดับ", "ประเภท", "รายการ", "จำนวนเงิน/หน่วย (บาท)", "จำนวน (ชิ้น)", "รวม (บาท)", "หมายเหตุ", "วันที่"];
+
+  const rows = transactions.map((tx, i) => {
+    const typeLabel = tx.type === "income" ? "รายรับ" : "รายจ่าย";
+    const dateStr = tx.createdAt
+      ? new Date(tx.createdAt).toLocaleDateString("th-TH", { year: "numeric", month: "2-digit", day: "2-digit" })
+      : "";
+    return [
+      i + 1,
+      typeLabel,
+      tx.label || "",
+      tx.amount != null ? tx.amount : "",
+      tx.quantity != null ? tx.quantity : 1,
+      tx.totalAmount != null ? tx.totalAmount : "",
+      tx.note || "",
+      dateStr
+    ];
+  });
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+
+  const bom = "\uFEFF";
+  const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+
+  const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "-");
+  const safeEventName = eventName.replace(/[<>:"/\\|?*]/g, "").trim().slice(0, 40);
+  const fileName = `CPE33_event_${safeEventName}_${dateStr}.csv`;
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+const exportEventCsvBtnEl = document.getElementById("exportEventCsvBtn");
+if (exportEventCsvBtnEl) {
+  exportEventCsvBtnEl.addEventListener("click", () => {
+    exportEventCsv();
+    const orig = exportEventCsvBtnEl.textContent;
+    exportEventCsvBtnEl.textContent = "✅ ดาวน์โหลดแล้ว";
+    exportEventCsvBtnEl.classList.add("copied");
+    setTimeout(() => {
+      exportEventCsvBtnEl.textContent = orig;
+      exportEventCsvBtnEl.classList.remove("copied");
+    }, 2000);
+  });
+}
+
 const lbCanvas = document.querySelector(".receipt-viewer-canvas");
 if (lbCanvas) {
   lbCanvas.addEventListener("touchstart", (e) => {

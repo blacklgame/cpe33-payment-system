@@ -20,7 +20,9 @@ Built for maximum efficiency on **Vercel** (strictly 11 Serverless Functions und
 - 🔵 **Option 1: จ่ายเต็มเดือนนี้ (Pay Full for This Month)** — Pay the exact dues for the selected month.
 - 🟠 **Option 2: ผ่อนจ่ายเดือนนี้ (Installment for This Month)** — Enter a custom partial payment amount (e.g. 30.00 THB out of 60.00 THB) with dynamic remaining balance calculation.
 - 🟣 **Option 3: จ่ายเหมาทุกเดือน (Pay All Unpaid Months at Once)** — Automatically sums all unpaid/remaining balances across all open months (e.g. 60 + 60 + 30 = 150.00 THB) for single-slip debt payoff.
+- 📱 **Official K PLUS Joint Thai QR Payment**: Embedded KBank PromptPay QR code for the 3-student joint account (`xxx-x-x5805-x`), compatible with mobile banking across all Thai banks.
 - 📊 **Auto-Cascading Ledger**: When an admin approves a slip, backend transactions sequentially allocate funds to close out the **oldest unpaid balances first**.
+- 📈 **Batch Goal Progress Bar**: Real-time animated completion tracker on the student status page (`/stats`), displaying cohort payment percentages (e.g. `จ่ายแล้ว 52/60 คน (86%)`) with responsive threshold tinting.
 
 ### ⚡ 2. Fast-Approval Mode for Admins (⚡ โหมดตรวจสลิปด่วน)
 - **Sequential Review Modal**: Rapidly review pending student payment slips one-by-one without page reloads.
@@ -48,6 +50,8 @@ Built for maximum efficiency on **Vercel** (strictly 11 Serverless Functions und
 ### 🛡️ 5. Admin Dashboard & Ledger Filters
 - **"จ่ายทุกเดือน (รวมทุกเดือน)" View**: View all student ledger summaries across all months at once.
 - **Live Filter Buttons**: Instant client-side filtering by **All (ทั้งหมด)**, **Pending (รอตรวจสอบ)**, **Paid (จ่ายแล้ว)**, **Installment (ผ่อนจ่าย)**, and **Unpaid (ยังไม่จ่าย)**.
+- **📋 1-Click Unpaid Reminder Copier**: Dynamically formats an announcement message with student IDs, names, and dues link ready to paste directly into LINE OpenChat or Discord.
+- **📥 Client-Side CSV Export**: Instant UTF-8 BOM CSV exports on both the Admin Dashboard (all students' payment breakdown) and Event Detail page (income/expense treasury transactions).
 - **Audited Status Overrides**: Manual status adjustments and note changes immutably logged to Firestore `/auditLog`.
 
 ### ⚡ 6. Vercel Serverless Architecture

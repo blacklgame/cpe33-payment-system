@@ -108,9 +108,14 @@
     <!-- ── Transaction list section ── -->
     <div class="section-header" id="txSectionHeader" style="display:none;">
       <span class="section-title">รายการทั้งหมด</span>
-      <button class="btn-primary" id="addTxBtn" style="padding:11px 22px;font-size:0.95rem;">
-        + เพิ่มรายการ
-      </button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button type="button" class="btn-admin-action btn-export" id="exportEventCsvBtn" style="display:none;">
+          📥 Export CSV
+        </button>
+        <button class="btn-primary" id="addTxBtn" style="padding:11px 22px;font-size:0.95rem;">
+          + เพิ่มรายการ
+        </button>
+      </div>
     </div>
 
     <div id="txContainer" class="tx-container"></div>
