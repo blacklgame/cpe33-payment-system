@@ -636,3 +636,48 @@ if (btnCopy && bankAccountNumber && copyTooltip) {
     }
   });
 }
+
+/* ------------------------------------------------------------
+   4) Download QR Code Image
+------------------------------------------------------------ */
+const btnDownloadQr = document.getElementById("btnDownloadQr");
+const downloadQrLabel = document.getElementById("downloadQrLabel");
+
+if (btnDownloadQr && downloadQrLabel) {
+  btnDownloadQr.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const qrUrl = btnDownloadQr.getAttribute("href") || "../assets/qr-promptpay.jpg";
+    const fileName = btnDownloadQr.getAttribute("download") || "CPE33-PromptPay-QR.jpg";
+
+    try {
+      const response = await fetch(qrUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      const tempLink = document.createElement("a");
+      tempLink.href = blobUrl;
+      tempLink.download = fileName;
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+      URL.revokeObjectURL(blobUrl);
+
+      const origText = downloadQrLabel.textContent;
+      downloadQrLabel.textContent = "บันทึกเรียบร้อย!";
+      btnDownloadQr.classList.add("downloaded");
+      setTimeout(() => {
+        downloadQrLabel.textContent = origText;
+        btnDownloadQr.classList.remove("downloaded");
+      }, 2000);
+    } catch (err) {
+      console.warn("Direct blob download failed, falling back to window.open:", err);
+      const fallbackLink = document.createElement("a");
+      fallbackLink.href = qrUrl;
+      fallbackLink.download = fileName;
+      fallbackLink.target = "_blank";
+      document.body.appendChild(fallbackLink);
+      fallbackLink.click();
+      document.body.removeChild(fallbackLink);
+    }
+  });
+}

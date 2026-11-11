@@ -541,6 +541,40 @@ h1 {
   letter-spacing: 0.3px;
 }
 
+.btn-download-qr {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  padding: 7px 18px;
+  border-radius: var(--radius-pill, 999px);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 2px;
+}
+
+.btn-download-qr:hover {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10b981;
+  color: #6ee7b7;
+  transform: translateY(-1px);
+}
+
+.btn-download-qr:active {
+  transform: translateY(0);
+}
+
+.btn-download-qr.downloaded {
+  background: rgba(16, 185, 129, 0.28);
+  border-color: #10b981;
+  color: #a7f3d0;
+}
+
 @media (max-width: 400px) {
   .bank-qr-img {
     width: 170px;
